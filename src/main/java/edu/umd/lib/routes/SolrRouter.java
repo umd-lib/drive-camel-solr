@@ -14,6 +14,14 @@ public class SolrRouter extends RouteBuilder  {
 	@Override
 	public void configure() throws Exception {
 		
+		
+		 /**
+         * A generic error handler (specific to this RouteBuilder)
+         */
+        onException(Exception.class)
+            .maximumRedeliveries("{{error.maxRedeliveries}}")
+            .log("Index Routing Error: ${routeId}");
+		
 		/**
          * Read from File Path
          */

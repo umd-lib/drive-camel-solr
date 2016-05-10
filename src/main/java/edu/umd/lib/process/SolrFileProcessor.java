@@ -11,7 +11,6 @@ public class SolrFileProcessor implements Processor{
 	Random rand = new Random();
 	public void process(Exchange exchange) throws Exception {
 		
-
 		int randomID = rand.nextInt(200) + 1;
 		File file = exchange.getIn().getBody(File.class);
         JSONObject json = new JSONObject();
