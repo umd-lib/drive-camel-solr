@@ -26,9 +26,10 @@ public class SolrFileProcessor implements Processor{
 		int randomID = rand.nextInt(200) + 1;
 		File file = exchange.getIn().getBody(File.class);
         JSONObject json = new JSONObject();
-        json.put("id", randomID);
+        json.put("id", randomID);//Modify code to Include File ID from Drive
         json.put("name", file.getName());   
         json.put("type", tika.detect(file));
+        json.put("url", "https://www.google.com/");//Modify code to Include Url from Drive
         json.put("fileContent", parseToPlainText(file));
         exchange.getIn().setBody("["+json.toString()+"]");        
 	}
