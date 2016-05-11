@@ -16,37 +16,56 @@ import org.apache.tika.sax.BodyContentHandler;
 import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
-public class SolrFileProcessor implements Processor{
-	
-	Random rand = new Random();
-	Tika tika = new Tika();
-	
-	public void process(Exchange exchange) throws Exception {
-		
-		int randomID = rand.nextInt(200) + 1;
-		File file = exchange.getIn().getBody(File.class);
-        JSONObject json = new JSONObject();
-        json.put("id", randomID);//Modify code to Include File ID from Drive
-        json.put("name", file.getName());   
-        json.put("type", tika.detect(file));
-        json.put("url", "https://www.google.com/");//Modify code to Include Url from Drive
-        json.put("fileContent", parseToPlainText(file));
-        exchange.getIn().setBody("["+json.toString()+"]");        
-	}
-        
-	public String parseToPlainText(File file) throws IOException, SAXException, TikaException {
-	    BodyContentHandler handler = new BodyContentHandler();
-	 
-	    AutoDetectParser parser = new AutoDetectParser();
-	    Metadata metadata = new Metadata();
-	    try{
-	    	InputStream targetStream = new FileInputStream(file.getAbsolutePath());
-	    	parser.parse(targetStream, handler, metadata);
-	    	return handler.toString();
-	    }catch(Exception e){
-	    	e.printStackTrace();
-	    	 return "Empty String";
-	    }
-	}
-	
+/****
+ * Process the file to add to Solr
+ * 
+ * @author rameshb
+ *
+ */
+public class SolrFileProcessor implements Processor {
+
+  Random rand = new Random();
+  Tika tika = new Tika();
+
+  /****
+   * Process the File and Create Request for Solr
+   */
+  public void process(Exchange exchange) throws Exception {
+
+    int randomID = rand.nextInt(200) + 1;
+    File file = exchange.getIn().getBody(File.class);
+    JSONObject json = new JSONObject();
+    json.put("id", randomID);// Modify code to Include File ID from Drive
+    json.put("name", file.getName());
+    json.put("type", tika.detect(file));
+    json.put("url", "https://www.google.com/");// Modify code to Include Url
+                                               // from Drive
+    json.put("fileContent", parseToPlainText(file));
+    exchange.getIn().setBody("[" + json.toString() + "]");
+  }
+
+  /***
+   * Convert the File into Plain Text file
+   *
+   * @param file
+   * @return
+   * @throws IOException
+   * @throws SAXException
+   * @throws TikaException
+   */
+  public String parseToPlainText(File file) throws IOException, SAXException, TikaException {
+    BodyContentHandler handler = new BodyContentHandler();
+
+    AutoDetectParser parser = new AutoDetectParser();
+    Metadata metadata = new Metadata();
+    try {
+      InputStream targetStream = new FileInputStream(file.getAbsolutePath());
+      parser.parse(targetStream, handler, metadata);
+      return handler.toString();
+    } catch (Exception e) {
+      e.printStackTrace();
+      return "Empty String";
+    }
+  }
+
 }
