@@ -32,9 +32,13 @@ Create a Schema using the below definion
  <solrQueryParser defaultOperator="OR"/>
 </schema>
 ```
-To build and run the project
+To build this project use
 
-    mvn clean compile exec:java -Dexec.mainClass=edu.umd.lib.ServicesApp
+    mvn install
+
+To run this project from within Maven use
+
+    mvn exec:java
 
 For more help see the Apache Camel documentation
 
