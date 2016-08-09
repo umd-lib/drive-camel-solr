@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0"
+       xsi:schemaLocation="
+       http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0 http://aries.apache.org/schemas/blueprint-cm/blueprint-cm-1.1.0.xsd
+       http://www.osgi.org/xmlns/blueprint/v1.0.0 http://www.osgi.org/xmlns/blueprint/v1.0.0/blueprint.xsd
+       http://camel.apache.org/schema/blueprint http://camel.apache.org/schema/blueprint/camel-blueprint.xsd">
+   
+  <!-- OSGI blueprint property placeholder -->
+  <cm:property-placeholder id="properties" persistent-id="edu.umd.lib.boxsolrconnector" update-strategy="reload">
+    <cm:default-properties>
+      <cm:property name="solr.baseUrl" value="localhost:8983/solr/box"/>
+      <cm:property name="solr.commitWithin" value="10000"/>
+      <cm:property name="error.maxRedeliveries" value="2"/>
+    </cm:default-properties>
+  </cm:property-placeholder> 
+
+ 
+ 	<camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
+      <package>edu.umd.lib</package>
+  	<propertyPlaceholder id="placeholder" location="edu.umd.lib.boxsolrconnector.cfg"/>
+    </camelContext>
+
+  
+
+</blueprint>

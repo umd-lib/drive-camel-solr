@@ -4,8 +4,10 @@ import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
 
+import edu.umd.lib.process.BoxDeleteProcessor;
+import edu.umd.lib.process.BoxUploadProcessor;
+import edu.umd.lib.process.BoxWebHookProcessor;
 import edu.umd.lib.process.SolrDeleteProcessor;
-import edu.umd.lib.process.SolrFileProcessor;
 
 /**
  * SolrRouter Contains all Route Configuration for Drive/Box and Solr
@@ -27,40 +29,80 @@ public class SolrRouter extends RouteBuilder {
         .log("Index Routing Error: ${routeId}");
 
     /**
-     * Read from File Path
+     * Parse Request from WuFoo Web hooks and create hash map for SysAid Route
      */
-    from("file:data/files?noop=true")
-        .routeId("SolrFileProcessor")
-        .process(new SolrFileProcessor())
-        .log(body().toString())
-        .log(LoggingLevel.INFO, "Reading Files from Path")
-        .to("direct:index_file.config");
+    from("jetty:{{default.domain}}{{box.routeName}}/{{box.serviceName}}").streamCaching()
+        .routeId("BoxListener")
+        .process(new BoxWebHookProcessor())
+        .log("Wufoo Process Completed")
+        .to("direct:route.events");
 
     /**
-     * Indexing file from File Content
+     * Route Based on Event Types
      */
-    from("direct:index_file.config")
-        .routeId("IndexingFiles")
-        .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
-        .setHeader(Exchange.HTTP_METHOD, constant("POST"))
+    from("direct:route.events")
+        .routeId("Event Router")
+        .choice()
+        .when(header("event_type").isEqualTo("uploaded"))
+        .to("direct:uploaded.box")
+        .when(header("event_type").isEqualTo("deleted"))
+        .to("direct:deleted.box")
+        .otherwise()
+        .to("direct:default.box");
+
+    /**
+     * Event Listener when File is Uploaded
+     */
+    from("direct:uploaded.box")
+        .routeId("UploadProcessor")
+        .process(new BoxUploadProcessor())
+        .log("A file is Uploaded")
         .to("direct:update.solr");
 
     /**
-     * Deleting Index of a file using the file ID
+     * Event Listener when File is Deleted
      */
-    from("file:data/Solr-delete?noop=true")
-        .routeId("DeleteFiles")
+    from("direct:deleted.box")
+        .routeId("DeletedProcessor")
+        .process(new BoxDeleteProcessor())
+        .log("A file is Deleted")
         .to("direct:delete.solr");
+
+    /**
+     * Read from File Path
+     *
+     * from("file:data/files?noop=true") .routeId("SolrFileProcessor")
+     * .process(new SolrFileProcessor()) .log(body().toString())
+     * .log(LoggingLevel.INFO, "Reading Files from Path")
+     * .to("direct:index_file.config");
+     */
+
+    /**
+     * Deleting Index of a file using the file ID
+     *
+     * from("file:data/Solr-delete?noop=true") .routeId("DeleteFiles")
+     * .to("direct:delete.solr");
+     */
 
     /**
      * Perform the Solr update.
      */
+
+    /**
+     * Indexing file from File Content
+     *
+     * from("direct:index_file.config") .routeId("IndexingFiles")
+     * .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+     * .setHeader(Exchange.HTTP_METHOD, constant("POST"))
+     * .to("direct:update.solr");
+     */
+
     from("direct:update.solr")
         .routeId("SolrUpdater")
         .log(LoggingLevel.INFO, "Indexing Solr Object")
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("http4://{{solr.baseUrl}}/update")
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true")
         .to("log:DEBUG?showBody=true&showHeaders=true");
 
     /**
@@ -71,7 +113,7 @@ public class SolrRouter extends RouteBuilder {
         .process(new SolrDeleteProcessor())
         .log(LoggingLevel.INFO, "Deleting Solr Object")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("http4://{{solr.baseUrl}}/update")
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true")
         .to("log:DEBUG?showBody=true&showHeaders=true");
     ;
 
