@@ -13,9 +13,17 @@
       <cm:property name="solr.baseUrl" value="localhost:8983/solr/box"/>
       <cm:property name="solr.commitWithin" value="10000"/>
       <cm:property name="error.maxRedeliveries" value="2"/>
+       <cm:property name="camel.maximum_tries" value="3"/>
+      <cm:property name="camel.redelivery_delay" value="1000"/>
+      <cm:property name="camel.backoff_multiplier" value="2"/>
+      <cm:property name="camel.maximum_redelivery_delay" value="6000"/>
+      <cm:property name="email.from" value=""/>
+      <cm:property name="email.to" value=""/>
+      <cm:property name="email.uri" value=""/>
     </cm:default-properties>
   </cm:property-placeholder> 
 
+ <bean id="smtp" class="org.apache.camel.component.mail.MailComponent"/>
  
  	<camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
       <package>edu.umd.lib</package>

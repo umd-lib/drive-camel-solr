@@ -39,27 +39,31 @@
 			<artifactId>camel-core</artifactId>
 			<version>${camel.version}</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.apache.camel</groupId>
 			<artifactId>camel-solr</artifactId>
 			<version>${camel.version}</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.apache.camel</groupId>
 			<artifactId>camel-http4</artifactId>
 			<version>${camel.version}</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.apache.camel</groupId>
 			<artifactId>camel-zipfile</artifactId>
 			<version>${camel.version}</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.apache.camel</groupId>
 			<artifactId>camel-jetty</artifactId>
 			<version>${camel.version}</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.apache.camel</groupId>
 			<artifactId>camel-gson</artifactId>
@@ -67,37 +71,55 @@
 		</dependency>
 		
 		<dependency>
+	        <groupId>org.apache.camel</groupId>
+	        <artifactId>camel-mail</artifactId>
+	        <version>${camel.version}</version>
+		</dependency>
+
+		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
 			<version>2.6.2</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-log4j12</artifactId>
 			<version>${slf4j.version}</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
 			<version>20090211</version>
 		</dependency>
-		<dependency>
-			<groupId>org.apache.tika</groupId>
-			<artifactId>tika-core</artifactId>
-			<version>1.12</version>
-		</dependency>
+		
 		<dependency>
 			<groupId>org.apache.tika</groupId>
 			<artifactId>tika-parsers</artifactId>
 			<version>1.0</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>bcprov-jdk15</artifactId>
+					<groupId>org.bouncycastle</groupId>
+				</exclusion>
+			</exclusions>
 		</dependency>
+		
+		<dependency>
+			<groupId>com.eclipsesource.minimal-json</groupId>
+			<artifactId>minimal-json</artifactId>
+			<version>0.9.4</version>
+		</dependency>
+		
 		<dependency>
 			<groupId>com.box</groupId>
 			<artifactId>box-java-sdk</artifactId>
 			<version>2.1.1</version>
 		</dependency>
+		
+		
+
 	</dependencies>
 	<build>
 		<defaultGoal>install</defaultGoal>
