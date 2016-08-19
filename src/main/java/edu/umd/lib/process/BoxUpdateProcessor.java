@@ -6,6 +6,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -28,14 +29,20 @@ import edu.umd.lib.services.BoxAuthService;
  * @author rameshb
  *
  */
-public class BoxUploadProcessor implements Processor {
+public class BoxUpdateProcessor implements Processor {
+
+  Map<String, String> config;
+
+  public BoxUpdateProcessor(Map<String, String> config) {
+    this.config = config;
+  }
 
   public void process(Exchange exchange) throws Exception {
 
     String file_name = exchange.getIn().getHeader("item_name", String.class);
     String file_ID = exchange.getIn().getHeader("item_id", String.class);
 
-    BoxAuthService box = new BoxAuthService();
+    BoxAuthService box = new BoxAuthService(config);
     BoxAPIConnection api = box.getBoxAPIConnection();
 
     BoxFile file = new BoxFile(api, file_ID);

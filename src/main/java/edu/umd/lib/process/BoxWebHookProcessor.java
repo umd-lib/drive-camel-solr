@@ -27,7 +27,7 @@ public class BoxWebHookProcessor implements Processor {
       exchange.getIn().setHeader(entry.getKey(), value);
     }
 
-    // printingMap(parameters);
+    printingMap(parameters);
   }
 
   /***

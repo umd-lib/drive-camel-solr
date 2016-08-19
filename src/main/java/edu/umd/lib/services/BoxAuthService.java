@@ -3,6 +3,7 @@ package edu.umd.lib.services;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Map;
 
 import com.box.sdk.BoxAPIConnection;
 import com.box.sdk.BoxDeveloperEditionAPIConnection;
@@ -20,11 +21,30 @@ public class BoxAuthService {
   private String CLIENT_SECRET = "";
   private String ENTERPRISE_ID = "";
   private String PUBLIC_KEY_ID = "";
-  private String PRIVATE_KEY_FILE = "";
+  private String PRIVATE_KEY_FILE = ".pem";
   private String PRIVATE_KEY_PASSWORD = "";
   private String APP_USER_NAME = "";
   private int MAX_CACHE_ENTRIES = 100;
   private String USER_ID = "";
+
+  /***
+   * Initializing the Box Configuration
+   *
+   * @param config
+   */
+  public BoxAuthService(Map<String, String> config) {
+
+    CLIENT_ID = config.get("clientID");
+    CLIENT_SECRET = config.get("clientSecret");
+    ENTERPRISE_ID = config.get("enterpriseID");
+    PUBLIC_KEY_ID = config.get("publicKeyID");
+    PRIVATE_KEY_FILE = config.get("privateKeyFile");
+    PRIVATE_KEY_PASSWORD = config.get("privateKeyPassword");
+    APP_USER_NAME = config.get("appUserName");
+    MAX_CACHE_ENTRIES = Integer.parseInt(config.get("maxCacheTries"));
+    USER_ID = "";
+
+  }
 
   /****
    * Connect to Box as Enterprise User
@@ -76,7 +96,7 @@ public class BoxAuthService {
 
   public BoxAPIConnection getBoxAPIConnection() throws IOException {
 
-    // System.out.println("Inside Method boxAPIConnection >>>");
+    System.out.println("Inside Method boxAPIConnection >>>" + PRIVATE_KEY_FILE);
     String privateKey = new String(Files.readAllBytes(Paths.get(PRIVATE_KEY_FILE)));
 
     JWTEncryptionPreferences encryptionPref = new JWTEncryptionPreferences();

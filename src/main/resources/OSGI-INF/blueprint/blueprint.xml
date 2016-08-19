@@ -13,22 +13,49 @@
       <cm:property name="solr.baseUrl" value="localhost:8983/solr/box"/>
       <cm:property name="solr.commitWithin" value="10000"/>
       <cm:property name="error.maxRedeliveries" value="2"/>
-       <cm:property name="camel.maximum_tries" value="3"/>
+      
+      <cm:property name="box.routeName" value="box"/>
+      <cm:property name="box.serviceName" value="box-listener"/>
+      <cm:property name="default.domain" value="http://localhost:8080/"/>
+      
+      <cm:property name="camel.maximum_tries" value="3"/>
       <cm:property name="camel.redelivery_delay" value="1000"/>
       <cm:property name="camel.backoff_multiplier" value="2"/>
       <cm:property name="camel.maximum_redelivery_delay" value="6000"/>
+      
       <cm:property name="email.from" value=""/>
       <cm:property name="email.to" value=""/>
       <cm:property name="email.uri" value=""/>
-    </cm:default-properties>
+      
+      <cm:property name="box.clientid" value=""/>
+      <cm:property name="box.clientsecret" value=""/>
+      <cm:property name="box.enterpriseid" value=""/>
+      <cm:property name="box.public_key_id" value=""/>
+      <cm:property name="box.private_key_file" value=""/>
+      <cm:property name="box.private_key_password" value=""/>
+      <cm:property name="box.app_user_name" value=""/>
+      <cm:property name="box.max_cache_entries" value=""/>
+      
+	 </cm:default-properties>
   </cm:property-placeholder> 
 
  <bean id="smtp" class="org.apache.camel.component.mail.MailComponent"/>
  
- 	<camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
-      <package>edu.umd.lib</package>
+ <bean id="SolrRouter" class="edu.umd.lib.routes.SolrRouter">
+  	<property name="clientID" value="${box.clientid}" />
+    <property name="clientSecret" value="${box.clientsecret}" />
+    <property name="enterpriseID" value="${box.enterpriseid}" />
+    <property name="publicKeyID" value="${box.public_key_id}" />
+    <property name="privateKeyFile" value="${box.private_key_file}" />
+    <property name="privateKeyPassword" value="${box.private_key_password}" />
+    <property name="appUserName" value="${box.app_user_name}" />
+    <property name="maxCacheTries" value="${box.max_cache_entries}" />
+ </bean>
+ 
+ <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
+    <package>edu.umd.lib</package>
   	<propertyPlaceholder id="placeholder" location="edu.umd.lib.boxsolrconnector.cfg"/>
-    </camelContext>
+</camelContext>
 
   
 
