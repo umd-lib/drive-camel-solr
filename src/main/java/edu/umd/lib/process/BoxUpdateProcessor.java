@@ -43,7 +43,7 @@ public class BoxUpdateProcessor implements Processor {
     String file_ID = exchange.getIn().getHeader("item_id", String.class);
 
     BoxAuthService box = new BoxAuthService(config);
-    BoxAPIConnection api = box.getBoxAPIConnection();
+    BoxAPIConnection api = box.getBoxAPIConnection();// Get Box Connection
 
     BoxFile file = new BoxFile(api, file_ID);
     BoxFile.Info info = file.getInfo();
@@ -52,16 +52,18 @@ public class BoxUpdateProcessor implements Processor {
     FileOutputStream stream = new FileOutputStream("data/files/" + info.getName());
     file.download(stream);
     stream.close();
-    File donwload_file = new File("data/files/" + info.getName());
+    File download_file = new File("data/files/" + info.getName());
 
     Tika tika = new Tika();
     JSONObject json = new JSONObject();
 
     json.put("id", file_ID);
     json.put("name", file_name);
-    json.put("type", tika.detect(donwload_file));
+    json.put("type", tika.detect(download_file));// Detect file type
     json.put("url", previewurl);
-    json.put("fileContent", parseToPlainText(donwload_file));
+    json.put("fileContent", parseToPlainText(download_file));
+
+    download_file.delete();// Delete the file which was down loaded
     exchange.getIn().setBody("[" + json.toString() + "]");
 
   }
