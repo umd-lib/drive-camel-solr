@@ -27,22 +27,16 @@ public class BoxWebHookProcessor implements Processor {
       exchange.getIn().setHeader(entry.getKey(), value);
     }
 
-    printingMap(parameters);
+    // printingMap(parameters);
   }
 
   /***
    * From response parse the string to form hash map of parameters
    *
    * @param parameters
-   *          from the WuFoo Request @return Hash map with parameter name as key
-   *          and field value as value @exception
-   */
-  /***
-   * From response parse the string to form hash map of parameters
-   *
-   * @param parameters
-   *          from the WuFoo Request @return Hash map with parameter name as key
-   *          and field value as value @exception
+   *          box web hook notification
+   * @return Hash map with parameter name as key and field value as
+   *         value @exception
    */
   public Map<String, String> getQueryParams(String queryString) {
 

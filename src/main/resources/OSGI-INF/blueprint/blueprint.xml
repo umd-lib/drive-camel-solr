@@ -25,7 +25,7 @@
       
       <cm:property name="email.from" value=""/>
       <cm:property name="email.to" value=""/>
-      <cm:property name="email.uri" value=""/>
+      <cm:property name="email.uri" value="smtp://localhost:25"/>
       
       <cm:property name="box.clientid" value=""/>
       <cm:property name="box.clientsecret" value=""/>
@@ -54,7 +54,7 @@
  
  <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
   	<propertyPlaceholder id="placeholder" location="edu.umd.lib.boxsolrconnector.cfg"/>
-    <routeBuilder ref="SolrRouter" />
+	  <routeBuilder ref="SolrRouter" />
 </camelContext>
 
   
