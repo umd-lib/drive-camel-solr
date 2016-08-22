@@ -211,7 +211,7 @@
 				</executions>
 				<configuration>
 					<instructions>
-						<Bundle-SymbolicName>Drive-Camel-Solr-bundle</Bundle-SymbolicName>
+						<Bundle-SymbolicName>drive-camel-solr-bundle</Bundle-SymbolicName>
 						<Private-Package>edu.umd.lib.*</Private-Package>
 						<Import-Package>*</Import-Package>
 					</instructions>
