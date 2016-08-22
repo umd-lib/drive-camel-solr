@@ -53,8 +53,8 @@
  </bean>
  
  <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
-    <routeBuilder ref="SolrRouter" />
   	<propertyPlaceholder id="placeholder" location="edu.umd.lib.boxsolrconnector.cfg"/>
+    <routeBuilder ref="SolrRouter" />
 </camelContext>
 
   
