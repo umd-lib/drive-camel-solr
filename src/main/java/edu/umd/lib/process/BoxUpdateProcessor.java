@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+import org.apache.log4j.Logger;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -19,17 +20,22 @@ import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
 import com.box.sdk.BoxAPIConnection;
+import com.box.sdk.BoxAPIException;
 import com.box.sdk.BoxFile;
 
+import edu.umd.lib.exception.BoxCustomException;
 import edu.umd.lib.services.BoxAuthService;
 
 /****
- * Process the file to add to Solr
+ * Create a JSON to add the file to Solr. Connect to box and download the whole
+ * file that needs to be indexed.
  *
  * @author rameshb
  *
  */
 public class BoxUpdateProcessor implements Processor {
+
+  private static Logger log = Logger.getLogger(BoxUpdateProcessor.class);
 
   Map<String, String> config;
 
@@ -42,29 +48,38 @@ public class BoxUpdateProcessor implements Processor {
     String file_name = exchange.getIn().getHeader("item_name", String.class);
     String file_ID = exchange.getIn().getHeader("item_id", String.class);
 
+    log.info("Creating JSON for indexing box file with ID:" + file_ID);
+
     BoxAuthService box = new BoxAuthService(config);
     BoxAPIConnection api = box.getBoxAPIConnection();// Get Box Connection
+    log.info("Connecting to Box to download the file through box API");
 
-    BoxFile file = new BoxFile(api, file_ID);
-    BoxFile.Info info = file.getInfo();
-    URL previewurl = file.getPreviewLink();
+    try {
+      BoxFile file = new BoxFile(api, file_ID);
+      BoxFile.Info info = file.getInfo();
+      URL previewurl = file.getPreviewLink();
+      log.info("Creating Preview Link");
 
-    FileOutputStream stream = new FileOutputStream("data/files/" + info.getName());
-    file.download(stream);
-    stream.close();
-    File download_file = new File("data/files/" + info.getName());
+      FileOutputStream stream = new FileOutputStream("data/files/" + info.getName());
+      file.download(stream);
+      stream.close();
+      File download_file = new File("data/files/" + info.getName());
 
-    Tika tika = new Tika();
-    JSONObject json = new JSONObject();
+      Tika tika = new Tika();
+      JSONObject json = new JSONObject();
 
-    json.put("id", file_ID);
-    json.put("name", file_name);
-    json.put("type", tika.detect(download_file));// Detect file type
-    json.put("url", previewurl);
-    json.put("fileContent", parseToPlainText(download_file));
+      json.put("id", file_ID);
+      json.put("name", file_name);
+      json.put("type", tika.detect(download_file));// Detect file type
+      json.put("url", previewurl);
+      json.put("fileContent", parseToPlainText(download_file));
 
-    download_file.delete();// Delete the file which was down loaded
-    exchange.getIn().setBody("[" + json.toString() + "]");
+      download_file.delete();// Delete the file which was down loaded
+      exchange.getIn().setBody("[" + json.toString() + "]");
+    } catch (BoxAPIException e) {
+      throw new BoxCustomException(
+          "File cannot be found. Please provide access for APP User.");
+    }
 
   }
 

@@ -4,44 +4,46 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Random;
+import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import org.apache.tika.Tika;
+import org.apache.log4j.Logger;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
-import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
+import com.box.sdk.BoxAPIConnection;
+
+import edu.umd.lib.services.BoxAuthService;
+
 /****
- * Process the file to add to Solr
- * 
+ * Create a JSON to add the file to Solr. Connect to box and download the whole
+ * file that needs to be indexed.
+ *
  * @author rameshb
  *
  */
-public class SolrFileProcessor implements Processor {
+public class BoxFolderProcessor implements Processor {
 
-  Random rand = new Random();
-  Tika tika = new Tika();
+  private static Logger log = Logger.getLogger(BoxFolderProcessor.class);
 
-  /****
-   * Process the File and Create Request for Solr
-   */
+  Map<String, String> config;
+
+  public BoxFolderProcessor(Map<String, String> config) {
+    this.config = config;
+  }
+
   public void process(Exchange exchange) throws Exception {
 
-    int randomID = rand.nextInt(200) + 1;
-    File file = exchange.getIn().getBody(File.class);
-    JSONObject json = new JSONObject();
-    json.put("id", randomID);// Modify code to Include File ID from Drive
-    json.put("name", file.getName());
-    json.put("type", tika.detect(file));
-    json.put("url", "https://www.google.com/");// Modify code to Include Url
-                                               // from Drive
-    json.put("fileContent", parseToPlainText(file));
-    exchange.getIn().setBody("[" + json.toString() + "]");
+    String folder_name = exchange.getIn().getHeader("item_name", String.class);
+    String folder_ID = exchange.getIn().getHeader("item_id", String.class);
+    BoxAuthService box = new BoxAuthService(config);
+    BoxAPIConnection api = box.getBoxAPIConnection();
+    log.info("Connecting to Box to download the file through box API");
+
   }
 
   /***

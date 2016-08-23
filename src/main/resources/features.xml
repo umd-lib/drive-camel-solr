@@ -1,10 +1,11 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<features xmlns="http://karaf.apache.org/xmlns/features/v1.3.0" name="drive-camel-solr-${project.version}">
+<features xmlns="http://karaf.apache.org/xmlns/features/v1.3.0" name="box-camel-solr-${project.version}">
   <repository>mvn:org.apache.camel.karaf/apache-camel/${camel.version}/xml/features</repository>
 
   <feature name="box-camel-solr" version="${project.version}" start-level="50">
-    <details>Installs the Drive Solr Camel Route</details>
-    <bundle>mvn:edu.umd.lib/drive-camel-solr/${project.version}</bundle>
+    <details>Installs the Box Solr Camel Route</details>
+    <bundle>mvn:edu.umd.lib/box-camel-solr/${project.version}</bundle>
+    <bundle dependency="true">wrap:mvn:org.apache.tika/tika-parsers/1.0</bundle>
     <bundle dependency="true">wrap:mvn:org.json/json/20090211</bundle>
     <bundle dependency="true">wrap:mvn:org.ow2.asm/asm-commons/5.0.3</bundle>
     <feature version="${camel.version}">camel</feature>
@@ -15,9 +16,8 @@
     <feature version="${camel.version}">camel-solr</feature>
     <feature version="${camel.version}">camel-zipfile</feature>
     <feature version="${camel.version}">camel-gson</feature>
-    <bundle dependency="true">wrap:mvn:org.apache.tika/tika-parsers/1.0</bundle>
     <bundle dependency="true">wrap:mvn:com.eclipsesource.minimal-json/minimal-json/0.9.4</bundle>
-    <bundle dependency="true">wrap:mvn:com.box/box-java-sdk/2.1.1</bundle>
+    <bundle dependency="true">wrap:mvn:com.box/box-java-sdk/2.1.1</bundle>    
     <configfile finalname="/etc/edu.umd.lib.boxsolrconnector.cfg">mvn:edu.umd.lib/box-camel-solr/${project.version}/cfg/configuration</configfile>
   </feature>
 

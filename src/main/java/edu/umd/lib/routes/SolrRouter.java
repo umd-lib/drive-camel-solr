@@ -5,17 +5,18 @@ import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
+import org.apache.camel.Predicate;
+import org.apache.camel.builder.PredicateBuilder;
 import org.apache.camel.builder.RouteBuilder;
 
 import edu.umd.lib.process.BoxDeleteProcessor;
+import edu.umd.lib.process.BoxFolderProcessor;
 import edu.umd.lib.process.BoxUpdateProcessor;
 import edu.umd.lib.process.BoxWebHookProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
-import edu.umd.lib.process.SolrDeleteProcessor;
 
 /**
- * SolrRouter Contains all Route Configuration for Drive/Box and Solr
- * Integration
+ * SolrRouter Contains all Route Configuration for Box and Solr Integration
  * <p>
  *
  * @since 1.0
@@ -29,12 +30,20 @@ public class SolrRouter extends RouteBuilder {
   private String privateKeyFile = "";
   private String privateKeyPassword = "";
   private String appUserName = "";
-  private String maxCacheTries = "100";
+  private String maxCacheTries = "";
 
   Map<String, String> config = new HashMap<String, String>();
 
   public final String emailSubject = "Exception Occured in Box-Solr Integration, "
       + "Total Number of Attempts: {{camel.maximum_tries}} retries.";
+
+  Predicate uploaded = header("event_type").isEqualTo("uploaded");
+  Predicate copied = header("event_type").isEqualTo("copied");
+  Predicate moved = header("event_type").isEqualTo("moved");
+  Predicate deleted = header("event_type").isEqualTo("deleted");
+  Predicate created = header("event_type").isEqualTo("created");
+  Predicate folder = header("item_type").isEqualTo("folder");
+  Predicate file = header("item_type").isEqualTo("file");
 
   @Override
   public void configure() throws Exception {
@@ -63,7 +72,7 @@ public class SolrRouter extends RouteBuilder {
         .to("direct:send_error_email");
 
     /**
-     * Parse Request from WuFoo Web hooks. Each Parameter from web hook is set
+     * Parse Request from Box Web hooks. Each Parameter from web hook is set
      * into camel exchange header to make it available for camel routes
      */
     from("jetty:{{default.domain}}{{box.routeName}}/{{box.serviceName}}").streamCaching()
@@ -79,14 +88,16 @@ public class SolrRouter extends RouteBuilder {
     from("direct:route.events")
         .routeId("CamelBoxRouter")
         .choice()
-        .when(header("event_type").isEqualTo("uploaded"))
+        .when(PredicateBuilder.and(uploaded, file))
         .to("direct:uploaded.box")
-        .when(header("event_type").isEqualTo("copied"))
+        .when(PredicateBuilder.and(copied, file))
         .to("direct:uploaded.box")
-        .when(header("event_type").isEqualTo("moved"))
+        .when(PredicateBuilder.and(moved, file))
         .to("direct:uploaded.box")
-        .when(header("event_type").isEqualTo("deleted"))
+        .when(PredicateBuilder.and(deleted, file))
         .to("direct:deleted.box")
+        .when(PredicateBuilder.and(created, folder))
+        .to("direct:created.box")
         .otherwise()
         .to("direct:default.box");
 
@@ -111,6 +122,14 @@ public class SolrRouter extends RouteBuilder {
         .to("direct:delete.solr");
 
     /**
+     * Provide permission to APP user when new folder has been created.
+     */
+    from("direct:created.box")
+        .routeId("BoxFolderProcessor")
+        .process(new BoxFolderProcessor(config))
+        .log("Providing Permission to the Folder.");
+
+    /**
      * Connect to Solr and update the Box information
      */
     from("direct:update.solr")
@@ -119,18 +138,18 @@ public class SolrRouter extends RouteBuilder {
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
         .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
-    // .to("log:DEBUG?showBody=true&showHeaders=true");
 
     /**
      * Connect to Solr and delete the Box information
      */
     from("direct:delete.solr")
         .routeId("SolrDeleter")
-        .process(new SolrDeleteProcessor())
         .log(LoggingLevel.INFO, "Deleting Solr Object")
+        .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+        .setHeader(Exchange.HTTP_METHOD).simple("POST")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
-    // .to("log:DEBUG?showBody=true&showHeaders=true");
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true")
+        .to("log:DEBUG?showBody=true&showHeaders=true");
 
     /***
      * Default Box Route

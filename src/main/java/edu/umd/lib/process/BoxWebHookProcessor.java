@@ -27,7 +27,7 @@ public class BoxWebHookProcessor implements Processor {
       exchange.getIn().setHeader(entry.getKey(), value);
     }
 
-    // printingMap(parameters);
+    printingMap(parameters);
   }
 
   /***
@@ -53,7 +53,6 @@ public class BoxWebHookProcessor implements Processor {
         }
         params.put(key, value);
       }
-      // printingMap(params);
       return params;
 
     } catch (UnsupportedEncodingException ex) {
