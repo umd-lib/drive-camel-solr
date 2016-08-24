@@ -10,7 +10,6 @@ import org.apache.camel.builder.PredicateBuilder;
 import org.apache.camel.builder.RouteBuilder;
 
 import edu.umd.lib.process.BoxDeleteProcessor;
-import edu.umd.lib.process.BoxFolderProcessor;
 import edu.umd.lib.process.BoxUpdateProcessor;
 import edu.umd.lib.process.BoxWebHookProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
@@ -41,8 +40,6 @@ public class SolrRouter extends RouteBuilder {
   Predicate copied = header("event_type").isEqualTo("copied");
   Predicate moved = header("event_type").isEqualTo("moved");
   Predicate deleted = header("event_type").isEqualTo("deleted");
-  Predicate created = header("event_type").isEqualTo("created");
-  Predicate folder = header("item_type").isEqualTo("folder");
   Predicate file = header("item_type").isEqualTo("file");
 
   @Override
@@ -96,8 +93,6 @@ public class SolrRouter extends RouteBuilder {
         .to("direct:uploaded.box")
         .when(PredicateBuilder.and(deleted, file))
         .to("direct:deleted.box")
-        .when(PredicateBuilder.and(created, folder))
-        .to("direct:created.box")
         .otherwise()
         .to("direct:default.box");
 
@@ -120,14 +115,6 @@ public class SolrRouter extends RouteBuilder {
         .process(new BoxDeleteProcessor())
         .log("Creating JSON for Solr Delete Route.")
         .to("direct:delete.solr");
-
-    /**
-     * Provide permission to APP user when new folder has been created.
-     */
-    from("direct:created.box")
-        .routeId("BoxFolderProcessor")
-        .process(new BoxFolderProcessor(config))
-        .log("Providing Permission to the Folder.");
 
     /**
      * Connect to Solr and update the Box information
