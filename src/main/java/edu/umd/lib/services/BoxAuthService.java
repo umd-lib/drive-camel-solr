@@ -78,12 +78,15 @@ public class BoxAuthService {
     // appropriately for your environment.
     IAccessTokenCache accessTokenCache = new InMemoryLRUAccessTokenCache(MAX_CACHE_ENTRIES);
 
-    BoxAPIConnection api = getAppEnterpriseConnection(privateKey, encryptionPref, accessTokenCache);
+    BoxDeveloperEditionAPIConnection api = getAppEnterpriseConnection(privateKey, encryptionPref, accessTokenCache);
     String appUserID = getAppUserID(api);
-    if (appUserID.equalsIgnoreCase("0")) {
-      log.info("Create new APP user ID since App user not found in Box.");
-      appUserID = createAppUser(api);
-    }
+    if(appUserID.equalsIgnoreCase("0")){
+        log.info("Create new APP user ID since App user not found in Box.");
+        System.out.println("Creating APP User???");
+        appUserID = createAppUser(api);
+    }else{
+        log.info("App user found");
+    }    
     this.USER_ID = appUserID;
 
     api = getAppUserConnection(privateKey, encryptionPref, accessTokenCache);
@@ -164,10 +167,11 @@ public class BoxAuthService {
    *
    * @throws BoxCustomException
    */
-  public String createAppUser(BoxAPIConnection api) throws IOException, BoxCustomException {
+  public String createAppUser(BoxDeveloperEditionAPIConnection api) throws IOException, BoxCustomException {
 
     CreateUserParams params = new CreateUserParams();
     try {
+      params.setSpaceAmount(1073741824); //
       BoxUser.Info user = BoxUser.createAppUser(api, APP_USER_NAME, params);
       return user.getID();
     } catch (BoxAPIException e) {

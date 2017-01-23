@@ -13,6 +13,8 @@ import edu.umd.lib.process.BoxDeleteProcessor;
 import edu.umd.lib.process.BoxUpdateProcessor;
 import edu.umd.lib.process.BoxWebHookProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
+import edu.umd.lib.process.BoxPollEventProcessor;
+    ;
 
 /**
  * SolrRouter Contains all Route Configuration for Box and Solr Integration
