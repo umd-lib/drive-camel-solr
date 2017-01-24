@@ -1,50 +1,38 @@
 package edu.umd.lib.process;
 
-import java.util.ArrayList;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.Processor;
+import org.apache.camel.ProducerTemplate;
 import org.apache.camel.impl.DefaultExchange;
 import org.apache.camel.impl.DefaultMessage;
 import org.apache.log4j.Logger;
 
 import com.box.sdk.BoxAPIConnection;
+import com.box.sdk.BoxAPIRequest;
 import com.box.sdk.BoxEvent;
+import com.box.sdk.BoxFile;
+import com.box.sdk.BoxFolder;
+import com.box.sdk.BoxItem;
+import com.box.sdk.BoxJSONResponse;
 import com.box.sdk.EventListener;
 import com.box.sdk.EventStream;
 import com.eclipsesource.json.JsonObject;
 
 import edu.umd.lib.services.BoxAuthService;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Properties;
-
-import org.apache.camel.ProducerTemplate;
-import org.apache.log4j.Logger;
-
-import com.box.sdk.BoxAPIRequest;
-import com.box.sdk.BoxDeveloperEditionAPIConnection;
-import com.box.sdk.BoxEvent;
-import com.box.sdk.BoxFile;
-import com.box.sdk.BoxFolder;
-import com.box.sdk.BoxItem;
-import com.box.sdk.BoxJSONResponse;
-import com.box.sdk.BoxUser;
-import com.box.sdk.CreateUserParams;
-import com.box.sdk.EncryptionAlgorithm;
-import com.box.sdk.EventListener;
-import com.box.sdk.EventStream;
-import com.box.sdk.IAccessTokenCache;
-import com.box.sdk.InMemoryLRUAccessTokenCache;
-import com.box.sdk.JWTEncryptionPreferences;
-import com.eclipsesource.json.JsonObject;
 /****
  * Create a JSON to add the file to Solr. Connect to box and download the whole
  * file that needs to be indexed.
@@ -54,147 +42,109 @@ import com.eclipsesource.json.JsonObject;
  */
 public class BoxPollEventProcessor implements Processor {
 
- private static Logger log = Logger.getLogger(BoxPollEventProcessor.class);
- Exchange exchange;
+  private static Logger log = Logger.getLogger(BoxPollEventProcessor.class);
+  Exchange exchange;
 
- Map<String, String> config;
- private long streamPosition = 5912459451532495L;
-
+  Map<String, String> config;
+  ProducerTemplate producer;
+  private long streamPosition = 0;
 
   public BoxPollEventProcessor(Map<String, String> config) {
     this.config = config;
   }
 
-  public void process(Exchange exchange) throws Exception {    
+  @Override
+  public void process(Exchange exchange) throws Exception {
+    loadStreamPosition();
     BoxAuthService box = new BoxAuthService(config);
     BoxAPIConnection api = box.getBoxAPIConnection();// Get Box Connection
-    poll(api);
+    producer = exchange.getContext().createProducerTemplate();
+    pollBox(api);
   }
-    
-/**
+
+  /**
    * Connects to Box and starts long polling Box events. On an event, sends
    * exchange to ActionListener and update's account's poll token.
    */
-  public void poll(BoxAPIConnection apiArg) throws Exception {
+  public void pollBox(BoxAPIConnection apiArg) throws Exception {
 
     final BoxAPIConnection api = apiArg;
     // If stream position is not 0, start an event stream to poll updates on API
     // connection
     if (this.getStreamPosition() != 0) {
-
       EventStream stream = new EventStream(api, getStreamPosition());
-
       stream.addListener(new EventListener() {
-
         String body;
         HashMap<String, String> headers;
-
+        @Override
         public void onEvent(BoxEvent event) {
 
           log.info("Box event received of type: " + event.getType().toString());
-
           body = event.toString();
           headers = new HashMap<String, String>();
 
           BoxItem.Info srcInfo = (BoxItem.Info) event.getSourceInfo();
           if (srcInfo != null) {
+            headers.put("item_id", srcInfo.getID());
+            headers.put("item_name", srcInfo.getName());
+            headers.put("item_path", getFullBoxPath(srcInfo));
+            headers.put("event_type", event.getType().toString());
 
-            headers.put("source_id", srcInfo.getID());
-            headers.put("source_name", srcInfo.getName());
-            headers.put("source_path", getFullBoxPath(srcInfo));
-
-            switch (event.getType()) {
-
-            case ITEM_UPLOAD:
-            case ITEM_CREATE:
-            case ITEM_UNDELETE_VIA_TRASH:
-            case ITEM_COPY:
-
-              if (srcInfo instanceof BoxFile.Info) {
-
-                // BoxFile file = (BoxFile) srcInfo.getResource();
-                BoxFile file = new BoxFile(api, srcInfo.getID());
-
-                headers.put("source_type", "file");
-                BoxFolder.Info parent = file.getInfo().getParent();
-                headers.put("parent_id", parent.getID());
-                try {
-                  headers.put("metadata", file.getMetadata().toString());
-                } catch (Exception ex) {
-                  headers.put("metadata", "none");
-                }
-
-                headers.put("action", "download");
-
-              } else {
-                BoxFolder folder = new BoxFolder(api, srcInfo.getID());
-                headers.put("source_type", "folder");
-                BoxFolder.Info parent = folder.getInfo().getParent();
-                headers.put("parent_id", parent.getID());
-                headers.put("action", "make_directory");
+            if (srcInfo instanceof BoxFile.Info) {
+              switch (event.getType()) {
+              case ITEM_UPLOAD:
+                updateHeaders(api, srcInfo, headers);
+                sendActionExchange(headers, body);
+                break;
+              case ITEM_CREATE:
+                updateHeaders(api, srcInfo, headers);
+                sendActionExchange(headers, body);
+                break;
+              case ITEM_UNDELETE_VIA_TRASH:
+                updateHeaders(api, srcInfo, headers);
+                sendActionExchange(headers, body);
+                break;
+              case ITEM_COPY:
+                updateHeaders(api, srcInfo, headers);
+                sendActionExchange(headers, body);
+                break;
+              case ITEM_RENAME:
+              case ITEM_MOVE:
+                // It does not look like there is a way to see attributes of a
+                // previous version of file.
+                // If an item is renamed or moved, we download the most recent
+                // version of the file
+                // BUT THE OLD VERSION MAY STILL BE IN THE LOCAL STORE since we
+                // cannot look it up by path location
+                // NOTE: We can 'guess' the location of the old file, if it is
+                // still in
+                // the same directory using BoxFile.getVersions(), and
+                // BoxFileVersion.getName(), but I do not implement this here
+                // since it will only work some of the time.
+                // I leave these 2 event types to handled separately in case a new
+                // handling method is found.
+                updateHeaders(api, srcInfo, headers);
+                sendActionExchange(headers, body);
+                break;
+              case ITEM_TRASH:
+                headers.put("item_type", "file");
+                sendActionExchange(headers, body);
+                break;
+              default:
+                log.info("Unhandled Box event." + event.getType().toString());
+                break;
               }
-              break;
-
-            case ITEM_RENAME:
-            case ITEM_MOVE:
-
-              // It does not look like there is a way to see attributes of a
-              // previous version of file.
-              // If an item is renamed or moved, we download the most recent
-              // version of the file
-              // BUT THE OLD VERSION MAY STILL BE IN THE LOCAL STORE since we
-              // cannot look it up by path location
-              // NOTE: We can 'guess' the location of the old file, if it is
-              // still in
-              // the same directory using BoxFile.getVersions(), and
-              // BoxFileVersion.getName(), but I do not implement this here
-              // since it will only work some of the time.
-              // I leave these 2 event types to handled separately in case a new
-              // handling method is found.
-
-              if (srcInfo instanceof BoxFile.Info) {
-
-                // BoxFile file = (BoxFile) srcInfo.getResource();
-                BoxFile file = new BoxFile(api, srcInfo.getID());
-
-                headers.put("source_type", "file");
-                BoxFolder.Info parent = file.getInfo().getParent();
-                headers.put("parent_id", parent.getID());
-                try {
-                  headers.put("metadata", file.getMetadata().toString());
-                } catch (Exception ex) {
-                  headers.put("metadata", "none");
-                }
-
-                headers.put("action", "download");
-
-              } else {
-                BoxFolder folder = new BoxFolder(api, srcInfo.getID());
-                headers.put("source_type", "folder");
-                BoxFolder.Info parent = folder.getInfo().getParent();
-                headers.put("parent_id", parent.getID());
-                headers.put("action", "make_directory");
-              }
-              break;
-
-            case ITEM_TRASH:
-              headers.put("action", "delete");
-              headers.put("details", "remove_childen");
-              break;
-
-            default:
-              log.info("Unhandled Box event.");
-              break;
             }
-
           }
 
         }
 
+        @Override
         public void onNextPosition(long position) {
           updatePollToken(position);
         }
 
+        @Override
         public boolean onException(Throwable e) {
           e.printStackTrace();
           return false;
@@ -203,9 +153,10 @@ public class BoxPollEventProcessor implements Processor {
 
 
       stream.start();
-      Thread.sleep(1000 * 30 * 1); // 30 seconds to receive events from box
+      log.info("Box Streaming Started");
+      Thread.sleep(1000 * 60 * 1); // 30 seconds to receive events from box
       stream.stop();
-
+      log.info("Box Streaming Stopped");
       // If poll token is 0, get a current stream position and download all
       // files
       // from that account to the sync folder
@@ -216,7 +167,6 @@ public class BoxPollEventProcessor implements Processor {
     }
   }
 
-  
   /**
    * Sends exchanges to ActionListener to download all files associated with an
    * api connection to account's local sync folder starting from root folder
@@ -227,6 +177,30 @@ public class BoxPollEventProcessor implements Processor {
     BoxFolder rootFolder = BoxFolder.getRootFolder(api);
     String rootPath = Paths.get("").toString();
     exchangeFolderItems(rootFolder, rootPath, api);
+  }
+
+  /**
+   * Sends a new message exchange with given headers and body to ActionListener
+   * route
+   *
+   * @param headers
+   * @param body
+   */
+  public void sendActionExchange(HashMap<String, String> headers, String body) {
+
+    log.info("Sending action for some items");
+
+    Exchange exchange = new DefaultExchange(producer.getCamelContext());
+    Message message = new DefaultMessage();
+    message.setBody(body);
+
+    for (Map.Entry<String, String> entry : headers.entrySet()) {
+      //log.info("Key:"+entry.getKey()+";Value"+entry.getValue());
+      message.setHeader(entry.getKey(), entry.getValue());
+    }
+
+    exchange.setIn(message);
+    producer.send("direct:route.events", exchange);
   }
 
   /**
@@ -244,35 +218,51 @@ public class BoxPollEventProcessor implements Processor {
       String itemID = itemInfo.getID();
       String itemName = itemInfo.getName();
       String itemPath = Paths.get(path, itemName).toString();
-      headers.put("source_id", itemID);
-      headers.put("source_name", itemName);
-      headers.put("source_path", itemPath);
+      headers.put("item_id", itemID);
+      headers.put("item_name", itemName);
+      headers.put("item_path", itemPath);
 
       if (itemInfo instanceof BoxFile.Info) {
-        BoxFile file = new BoxFile(api, itemID); // need to connect again to get
-                                                 // all file info
-
-        headers.put("action", "download");
-        headers.put("parent_id", file.getInfo().getParent().getID());
-
+        updateHeaders(api, itemInfo,headers);
+        headers.put("event_type", BoxEvent.Type.ITEM_UPLOAD.toString());
+        sendActionExchange(headers, "");
       } else if (itemInfo instanceof BoxFolder.Info) {
-        BoxFolder dir = new BoxFolder(api, itemID); // need to connect again to
-                                                    // get all folder info
-
-        headers.put("action", "make_directory");
-        BoxFolder.Info parent = dir.getInfo().getParent();
-        if (parent == null) {
-          headers.put("parnet_id", "none");
-        } else {
-          headers.put("parent_id", parent.getID());
-        }
-
+        BoxFolder dir = new BoxFolder(api, itemID);
         exchangeFolderItems(dir, itemPath, api);
       }
     }
   }
 
-  
+  /****
+   * Updating Headers from the file. If file not found in box ignore the event,
+   * In some scenarios file can be deleted after this event was triggered and it
+   * would through an error since the file does not exist presently in
+   * box when the code accesses it
+   */
+  public void updateHeaders(final BoxAPIConnection api, BoxItem.Info srcInfo, HashMap<String, String> headers) {
+    // BoxFile file = (BoxFile) srcInfo.getResource();
+    headers.put("item_type", "file");
+
+    BoxFile file;
+    try {
+      log.info("File_Name:"+srcInfo.getName());
+      file = new BoxFile(api, srcInfo.getID());
+    } catch (Exception ex) {
+      log.info("File Not Available in Box presently");
+      headers.put("event_type", "skip");
+      return;
+    }
+
+    try{
+      BoxFolder.Info parent = file.getInfo().getParent();
+      headers.put("parent_id", parent.getID());
+      headers.put("metadata", file.getMetadata().toString());
+    } catch (Exception ex) {
+      headers.put("metadata", "none");
+      return;
+    }
+
+  }
 
   /**
    * Defines a box stream position (as long) from a poll token string.
@@ -296,8 +286,10 @@ public class BoxPollEventProcessor implements Processor {
    * @param position
    */
   private void updatePollToken(long position) {
-    log.info("Poll Position:"+position);
-    //Updating Poll Position to the configuration file
+
+    // log.info("Poll Position:" + position);
+    updateStreamPosition(position);
+    // Updating Poll Position to the configuration file
   }
 
   /**
@@ -338,9 +330,67 @@ public class BoxPollEventProcessor implements Processor {
     return position;
   }
 
- private long getStreamPosition() {
+  /***
+   * Getter Method for StreamPosition
+   *
+   * @return
+   */
+  private long getStreamPosition() {
     return streamPosition;
   }
-    
+
+  /****
+   * Create the properties file and load the stream position
+   * if properties file exists load the steam position for the file.
+   */
+  public void loadStreamPosition(){
+    try {
+      String boxPropFile = this.config.get("propertiesName");
+      File f = new File(boxPropFile);
+      if(f.exists() && !f.isDirectory()) {
+        Properties defaultProps = new Properties();
+        FileInputStream in = new FileInputStream(boxPropFile);
+        defaultProps.load(in);
+        streamPosition = Long.parseLong(defaultProps.getProperty("CurrentPollPosition"));
+        in.close();
+      }else{
+        log.error("create Properties file");
+        Properties properties = new Properties();
+        properties.setProperty("CurrentPollPosition", "0");
+        streamPosition = 0;
+        File file = new File(boxPropFile);
+        FileOutputStream fileOut = new FileOutputStream(file);
+        properties.store(fileOut, "Box Poll Position Updated by the program - Do not delete");
+        fileOut.close();
+      }
+    } catch (FileNotFoundException e) {
+      log.error("Properties file not found"+e.getMessage());
+    } catch (IOException e) {
+      log.error("Properties file cannot be opened"+e.getMessage());
+    }
+  }
+
+  /****
+   * Update Stream Position to the properties file
+   * @param streamPosition
+   */
+  public void updateStreamPosition(long streamPosition){
+    try {
+      String boxPropFile = this.config.get("propertiesName");
+      FileOutputStream out = new FileOutputStream(boxPropFile);
+      FileInputStream in = new FileInputStream(boxPropFile);
+      Properties props = new Properties();
+      props.load(in);
+      in.close();
+      props.setProperty("CurrentPollPosition", streamPosition+"");
+      props.store(out, "Box Poll Position Updated by the program - Do not delete");
+      out.close();
+    } catch (FileNotFoundException e) {
+      log.error("Properties file not found"+e.getMessage());
+    }catch (IOException e) {
+      log.error("Properties file cannot be opened"+e.getMessage());
+    }
+  }
+
 
 }

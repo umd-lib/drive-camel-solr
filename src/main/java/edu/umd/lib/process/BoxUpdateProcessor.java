@@ -43,6 +43,7 @@ public class BoxUpdateProcessor implements Processor {
     this.config = config;
   }
 
+  @Override
   public void process(Exchange exchange) throws Exception {
 
     String file_name = exchange.getIn().getHeader("item_name", String.class);
@@ -58,8 +59,6 @@ public class BoxUpdateProcessor implements Processor {
       BoxFile file = new BoxFile(api, file_ID);
       BoxFile.Info info = file.getInfo();
       URL previewurl = file.getPreviewLink();
-      log.info("Creating Preview Link");
-
       FileOutputStream stream = new FileOutputStream("data/files/" + info.getName());
       file.download(stream);
       stream.close();
@@ -76,6 +75,7 @@ public class BoxUpdateProcessor implements Processor {
 
       download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");
+      // log.info("File" + json.toString());
     } catch (BoxAPIException e) {
       throw new BoxCustomException(
           "File cannot be found. Please provide access for APP User.");

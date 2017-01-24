@@ -34,6 +34,7 @@ public class BoxAuthService {
   private int MAX_CACHE_ENTRIES = 100;
   private String USER_ID = "";
 
+  Map<String, String> config;
   /***
    * Initializing the Box Configuration
    *
@@ -50,7 +51,7 @@ public class BoxAuthService {
     APP_USER_NAME = config.get("appUserName");
     MAX_CACHE_ENTRIES = Integer.parseInt(config.get("maxCacheTries"));
     USER_ID = "";
-
+    this.config = config;
   }
 
   /****
@@ -62,51 +63,32 @@ public class BoxAuthService {
    */
   public BoxAPIConnection getBoxAPIConnection() throws IOException, BoxCustomException {
 
-    String privateKey = new String(Files.readAllBytes(Paths.get(PRIVATE_KEY_FILE)));
+    if(this.config.containsKey("appUserId")){
 
-    JWTEncryptionPreferences encryptionPref = new JWTEncryptionPreferences();
-    encryptionPref.setPublicKeyID(PUBLIC_KEY_ID);
-    encryptionPref.setPrivateKey(privateKey);
-    encryptionPref.setPrivateKeyPassword(PRIVATE_KEY_PASSWORD);
-    encryptionPref.setEncryptionAlgorithm(EncryptionAlgorithm.RSA_SHA_256);
+      this.USER_ID = config.get("appUserId");
+      BoxAPIConnection api = getAppUserConnection();
+      log.info("User ID already known:" + this.USER_ID);
+      return api;
 
-    // It is a best practice to use an access token cache to prevent unneeded
-    // requests to Box for access tokens.
-    // For production applications it is recommended to use a distributed cache
-    // like Memcached or Redis, and to
-    // implement IAccessTokenCache to store and retrieve access tokens
-    // appropriately for your environment.
-    IAccessTokenCache accessTokenCache = new InMemoryLRUAccessTokenCache(MAX_CACHE_ENTRIES);
-
-    BoxDeveloperEditionAPIConnection api = getAppEnterpriseConnection(privateKey, encryptionPref, accessTokenCache);
-    String appUserID = getAppUserID(api);
-    if(appUserID.equalsIgnoreCase("0")){
+    } else {
+      log.info("User ID not known:");
+      BoxDeveloperEditionAPIConnection api = getAppEnterpriseConnection();
+      String appUserID = getAppUserID(api);
+      if (appUserID.equalsIgnoreCase("0")) {
         log.info("Create new APP user ID since App user not found in Box.");
-        System.out.println("Creating APP User???");
         appUserID = createAppUser(api);
-    }else{
-        log.info("App user found");
-    }    
-    this.USER_ID = appUserID;
+      } else {
+        log.info("App user found:" + appUserID);
+      }
+      this.USER_ID = appUserID;
+      this.config.put("appUserId", USER_ID);
+      api = getAppUserConnection();
+      return api;
+    }
 
-    api = getAppUserConnection(privateKey, encryptionPref, accessTokenCache);
-    return api;
   }
 
-  /**
-   * @return the uSER_ID
-   */
-  public String getUSER_ID() {
-    return USER_ID;
-  }
 
-  /**
-   * @param uSER_ID
-   *          the uSER_ID to set
-   */
-  public void setUSER_ID(String uSER_ID) {
-    USER_ID = uSER_ID;
-  }
 
   /****
    * Connect to Box API as Enterprise User
@@ -115,13 +97,28 @@ public class BoxAuthService {
    * @throws IOException
    * @throws BoxCustomException
    */
-  public BoxDeveloperEditionAPIConnection getAppEnterpriseConnection(String privateKey,
-      JWTEncryptionPreferences encryptionPref, IAccessTokenCache accessTokenCache)
+  public BoxDeveloperEditionAPIConnection getAppEnterpriseConnection()
       throws IOException, BoxCustomException {
 
     BoxDeveloperEditionAPIConnection api;
     try {
       log.info("Connecting to Box as Enterprise User.");
+      String privateKey = new String(Files.readAllBytes(Paths.get(PRIVATE_KEY_FILE)));
+
+      JWTEncryptionPreferences encryptionPref = new JWTEncryptionPreferences();
+      encryptionPref.setPublicKeyID(PUBLIC_KEY_ID);
+      encryptionPref.setPrivateKey(privateKey);
+      encryptionPref.setPrivateKeyPassword(PRIVATE_KEY_PASSWORD);
+      encryptionPref.setEncryptionAlgorithm(EncryptionAlgorithm.RSA_SHA_256);
+
+      // It is a best practice to use an access token cache to prevent unneeded
+      // requests to Box for access tokens.
+      // For production applications it is recommended to use a distributed
+      // cache
+      // like Memcached or Redis, and to
+      // implement IAccessTokenCache to store and retrieve access tokens
+      // appropriately for your environment.
+      IAccessTokenCache accessTokenCache = new InMemoryLRUAccessTokenCache(MAX_CACHE_ENTRIES);
       api = BoxDeveloperEditionAPIConnection.getAppEnterpriseConnection(
           ENTERPRISE_ID, CLIENT_ID, CLIENT_SECRET, encryptionPref, accessTokenCache);
 
@@ -130,9 +127,7 @@ public class BoxAuthService {
           "Error connecting to Box API as Enterprise user. Verify Box Configuration Properties. " + e.getMessage());
 
     }
-
     return api;
-
   }
 
   /****
@@ -142,13 +137,28 @@ public class BoxAuthService {
    * @throws IOException
    * @throws BoxCustomException
    */
-  public BoxDeveloperEditionAPIConnection getAppUserConnection(String privateKey,
-      JWTEncryptionPreferences encryptionPref, IAccessTokenCache accessTokenCache)
+  public BoxDeveloperEditionAPIConnection getAppUserConnection()
       throws IOException, BoxCustomException {
 
     log.info("Connecting to Box as APP User.");
     BoxDeveloperEditionAPIConnection api;
     try {
+      String privateKey = new String(Files.readAllBytes(Paths.get(PRIVATE_KEY_FILE)));
+
+      JWTEncryptionPreferences encryptionPref = new JWTEncryptionPreferences();
+      encryptionPref.setPublicKeyID(PUBLIC_KEY_ID);
+      encryptionPref.setPrivateKey(privateKey);
+      encryptionPref.setPrivateKeyPassword(PRIVATE_KEY_PASSWORD);
+      encryptionPref.setEncryptionAlgorithm(EncryptionAlgorithm.RSA_SHA_256);
+
+      // It is a best practice to use an access token cache to prevent unneeded
+      // requests to Box for access tokens.
+      // For production applications it is recommended to use a distributed
+      // cache
+      // like Memcached or Redis, and to
+      // implement IAccessTokenCache to store and retrieve access tokens
+      // appropriately for your environment.
+      IAccessTokenCache accessTokenCache = new InMemoryLRUAccessTokenCache(MAX_CACHE_ENTRIES);
       api = BoxDeveloperEditionAPIConnection.getAppUserConnection(USER_ID, CLIENT_ID,
           CLIENT_SECRET, encryptionPref, accessTokenCache);
 
@@ -198,6 +208,21 @@ public class BoxAuthService {
       }
     }
     return "0";
+  }
+
+  /**
+   * @return the uSER_ID
+   */
+  public String getUSER_ID() {
+    return USER_ID;
+  }
+
+  /**
+   * @param uSER_ID
+   *          the uSER_ID to set
+   */
+  public void setUSER_ID(String uSER_ID) {
+    USER_ID = uSER_ID;
   }
 
 }

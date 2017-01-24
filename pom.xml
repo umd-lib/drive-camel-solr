@@ -193,8 +193,6 @@
 					<encoding>UTF-8</encoding>
 				</configuration>
 			</plugin>
-
-
 			<plugin>
 				<groupId>org.apache.felix</groupId>
 				<artifactId>maven-bundle-plugin</artifactId>

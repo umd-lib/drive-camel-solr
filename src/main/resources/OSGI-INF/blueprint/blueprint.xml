@@ -24,15 +24,16 @@
                 <cm:property name="email.to" value="" />
                 <cm:property name="email.uri" value="smtp://localhost:25" />
 
-                <cm:property name="box.clientid" value="dbwsiyd728fs7y6ph4zq4qj4472khu1m" />
-                <cm:property name="box.clientsecret" value="UXhbKZehpmopma7weDNmZTdGzWERsA57" />
-                <cm:property name="box.enterpriseid" value="937425" />
-                <cm:property name="box.public_key_id" value="y5udbi7n" />
-                <cm:property name="box.private_key_file" value="/Users/Ramesh/Documents/coding/camel-solr/src/main/resources/keys/private_key.pem" />
-                <cm:property name="box.private_key_password" value="BoxSolr" />
-                <cm:property name="box.app_user_name" value="BoxSolrAppUser" />
-                <cm:property name="box.max_cache_entries" value="100" />
-
+                <cm:property name="box.clientid" value="" />
+                <cm:property name="box.clientsecret" value="" />
+                <cm:property name="box.enterpriseid" value="" />
+                <cm:property name="box.public_key_id" value="" />
+                <cm:property name="box.private_key_file" value="" />
+                <cm:property name="box.private_key_password" value="" />
+                <cm:property name="box.app_user_name" value="" />
+                <cm:property name="box.max_cache_entries" value="" />
+                <cm:property name="box.properties_name" value="" />
+                <cm:property name="box.poll_interval" value="" />
             </cm:default-properties>
         </cm:property-placeholder>
 
@@ -47,6 +48,8 @@
             <property name="privateKeyPassword" value="${box.private_key_password}" />
             <property name="appUserName" value="${box.app_user_name}" />
             <property name="maxCacheTries" value="${box.max_cache_entries}" />
+            <property name="propertiesName" value="${box.properties_name}" />
+             <property name="pollInterval" value="${box.poll_interval}" />
         </bean>
 
         <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
