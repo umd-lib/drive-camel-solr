@@ -320,7 +320,7 @@ public class SolrRouter extends RouteBuilder {
    * @param pollInterval
    *          the pollInterval to set
    */
-  public void setPollInterva(String pollInterval) {
+  public void setPollInterval(String pollInterval) {
     this.pollInterval = pollInterval;
   }
 

@@ -33,7 +33,7 @@
                 <cm:property name="box.app_user_name" value="" />
                 <cm:property name="box.max_cache_entries" value="" />
                 <cm:property name="box.properties_name" value="" />
-                <cm:property name="box.poll_interval" value="" />
+                <cm:property name="box.poll_interval" value="120s" />
             </cm:default-properties>
         </cm:property-placeholder>
 
