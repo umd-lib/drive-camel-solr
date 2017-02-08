@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -24,6 +23,7 @@ import org.xml.sax.SAXException;
 import com.box.sdk.BoxAPIConnection;
 import com.box.sdk.BoxAPIException;
 import com.box.sdk.BoxFile;
+import com.box.sdk.BoxSharedLink;
 
 import edu.umd.lib.exception.BoxCustomException;
 import edu.umd.lib.services.BoxAuthService;
@@ -60,11 +60,15 @@ public class BoxUpdateProcessor implements Processor {
     try {
       BoxFile file = new BoxFile(api, file_ID);
       BoxFile.Info info = file.getInfo();
-      URL previewurl = file.getPreviewLink();
-      FileOutputStream stream = new FileOutputStream("data/files/" + info.getName());
+      String filepath = "data/files/" + info.getName();
+      BoxSharedLink.Permissions permissions = new BoxSharedLink.Permissions();
+      permissions.setCanDownload(true);// Can download
+      permissions.setCanPreview(true);// Can preview
+      BoxSharedLink sharedLink = file.createSharedLink(BoxSharedLink.Access.OPEN, null, permissions);
+      FileOutputStream stream = new FileOutputStream(filepath);
       file.download(stream);
       stream.close();
-      File download_file = new File("data/files/" + info.getName());
+      File download_file = new File(filepath);
 
       Tika tika = new Tika();
       JSONObject json = new JSONObject();
@@ -72,9 +76,9 @@ public class BoxUpdateProcessor implements Processor {
       json.put("id", file_ID);
       json.put("name", file_name);
       json.put("type", tika.detect(download_file));// Detect file type
-      json.put("url", previewurl);
+      json.put("url", sharedLink.getURL());
       json.put("fileContent", parseToPlainText(download_file));
-      json.put("file", encodeFileToBase64Binary("data/files/" + info.getName()));
+      json.put("file", encodeFileToBase64Binary(filepath));
       json.put("genre", "BoxContent");// Hardcoded
 
       download_file.delete();// Delete the file which was down loaded
