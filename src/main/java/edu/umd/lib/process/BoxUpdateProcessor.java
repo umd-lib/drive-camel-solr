@@ -6,10 +6,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
@@ -72,6 +74,8 @@ public class BoxUpdateProcessor implements Processor {
       json.put("type", tika.detect(download_file));// Detect file type
       json.put("url", previewurl);
       json.put("fileContent", parseToPlainText(download_file));
+      json.put("file", encodeFileToBase64Binary("data/files/" + info.getName()));
+      json.put("genre", "BoxContent");// Hardcoded
 
       download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");
@@ -105,6 +109,54 @@ public class BoxUpdateProcessor implements Processor {
       e.printStackTrace();
       return "Empty String";
     }
+  }
+
+  /****
+   * Encode File to Base64BinaryString
+   *
+   * @param fileName
+   * @return
+   * @throws IOException
+   */
+  private static String encodeFileToBase64Binary(String fileName)
+      throws IOException {
+
+    File file = new File(fileName);
+    byte[] bytes = loadFile(file);
+    byte[] encoded = Base64.encodeBase64(bytes);
+    String encodedString = new String(encoded, StandardCharsets.US_ASCII);
+    return encodedString;
+  }
+
+  /*****
+   * Loadfile to convert into String
+   *
+   * @param file
+   * @return
+   * @throws IOException
+   */
+  private static byte[] loadFile(File file) throws IOException {
+    InputStream is = new FileInputStream(file);
+
+    long length = file.length();
+    if (length > Integer.MAX_VALUE) {
+      // File is too large
+    }
+    byte[] bytes = new byte[(int) length];
+
+    int offset = 0;
+    int numRead = 0;
+    while (offset < bytes.length
+        && (numRead = is.read(bytes, offset, bytes.length - offset)) >= 0) {
+      offset += numRead;
+    }
+
+    if (offset < bytes.length) {
+      throw new IOException("Could not completely read file " + file.getName());
+    }
+
+    is.close();
+    return bytes;
   }
 
 }
