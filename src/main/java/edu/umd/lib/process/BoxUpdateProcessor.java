@@ -74,7 +74,7 @@ public class BoxUpdateProcessor implements Processor {
       JSONObject json = new JSONObject();
 
       json.put("id", file_ID);
-      json.put("name", file_name);
+      json.put("title", file_name);
       json.put("type", tika.detect(download_file));// Detect file type
       json.put("url", sharedLink.getURL());
       json.put("fileContent", parseToPlainText(download_file));

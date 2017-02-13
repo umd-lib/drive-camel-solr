@@ -48,3 +48,7 @@ To run this project from within Maven use
 For more help see the Apache Camel documentation
 
     http://camel.apache.org/
+
+## License
+ 
+See the [LICENSE](LICENSE.md) file for license rights and limitations (Apache 2.0).
