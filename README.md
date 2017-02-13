@@ -18,7 +18,7 @@ Create a Schema using the below definion
   <!-- general -->
   <field name="id"        type="string"   indexed="true"  stored="true"  multiValued="false" required="true"/>
   <field name="type"      type="string"   indexed="true"  stored="true"  multiValued="false" /> 
-  <field name="name"      type="string"   indexed="true"  stored="true"  multiValued="false" /> 
+  <field name="title"      type="string"   indexed="true"  stored="true"  multiValued="false" /> 
   <field name="url"       type="string"   indexed="true"  stored="true"  multiValued="true"/>
   <field name="fileContent" type="text" indexed="true" stored="false" multiValued="true"/>
   <field name="_version_" type="long"     indexed="true"  stored="true"/>
