@@ -2,3 +2,5 @@
 .settings/
 .project
 .classpath
+/src/main/resources/keys
+/src/main/resources/box
