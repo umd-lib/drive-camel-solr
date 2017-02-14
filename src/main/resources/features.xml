@@ -18,6 +18,7 @@
     <bundle dependency="true">wrap:mvn:org.json/json/20090211</bundle>
     <bundle dependency="true">wrap:mvn:org.ow2.asm/asm-commons/5.0.3</bundle>
     <bundle dependency="true">wrap:mvn:com.box/box-java-sdk/2.1.1</bundle>    
+    <bundle dependency="true">wrap:mvn:com.eclipsesource.minimal-json/minimal-json/0.9.4</bundle> 
     <configfile finalname="/etc/edu.umd.lib.boxsolrconnector.cfg">mvn:edu.umd.lib/box-camel-solr/${project.version}/cfg/configuration</configfile>
   </feature>
 
