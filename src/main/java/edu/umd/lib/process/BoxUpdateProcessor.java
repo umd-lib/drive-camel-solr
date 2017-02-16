@@ -60,7 +60,7 @@ public class BoxUpdateProcessor implements Processor {
     try {
       BoxFile file = new BoxFile(api, file_ID);
       BoxFile.Info info = file.getInfo();
-      String filepath = "data/files/" + info.getName();
+      String filepath = config.get("syncFolder") + info.getName();
       BoxSharedLink.Permissions permissions = new BoxSharedLink.Permissions();
       permissions.setCanDownload(true);// Can download
       permissions.setCanPreview(true);// Can preview
