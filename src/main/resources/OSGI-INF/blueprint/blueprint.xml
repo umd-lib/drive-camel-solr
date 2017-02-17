@@ -34,6 +34,7 @@
                 <cm:property name="box.max_cache_entries" value="" />
                 <cm:property name="box.properties_name" value="" />
                 <cm:property name="box.poll_interval" value="120s" />
+                <cm:property name="box.sync_folder" value="" />
             </cm:default-properties>
         </cm:property-placeholder>
 
@@ -49,7 +50,8 @@
             <property name="appUserName" value="${box.app_user_name}" />
             <property name="maxCacheTries" value="${box.max_cache_entries}" />
             <property name="propertiesName" value="${box.properties_name}" />
-             <property name="pollInterval" value="${box.poll_interval}" />
+            <property name="pollInterval" value="${box.poll_interval}" />
+            <property name="syncFolder" value="${box.sync_folder}" />
         </bean>
 
         <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">

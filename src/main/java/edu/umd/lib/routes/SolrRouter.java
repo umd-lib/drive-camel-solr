@@ -34,6 +34,7 @@ public class SolrRouter extends RouteBuilder {
   private String maxCacheTries = "";
   private String propertiesName = "";
   private String pollInterval = "";
+  private String syncFolder = "";
 
   Map<String, String> config = new HashMap<String, String>();
 
@@ -60,6 +61,7 @@ public class SolrRouter extends RouteBuilder {
     config.put("appUserName", appUserName);
     config.put("maxCacheTries", maxCacheTries);
     config.put("propertiesName", propertiesName);
+    config.put("syncFolder", syncFolder);
 
     /**
      * A generic error handler (specific to this RouteBuilder)
@@ -151,7 +153,7 @@ public class SolrRouter extends RouteBuilder {
     .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
     .setHeader(Exchange.HTTP_METHOD).simple("POST")
     .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+    .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /***
      * Default Box Route
@@ -322,6 +324,14 @@ public class SolrRouter extends RouteBuilder {
    */
   public void setPollInterval(String pollInterval) {
     this.pollInterval = pollInterval;
+  }
+
+  public String getSyncFolder() {
+    return syncFolder;
+  }
+
+  public void setSyncFolder(String boxTempStore) {
+    this.syncFolder = boxTempStore;
   }
 
 }
