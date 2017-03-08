@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Stack;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -23,6 +24,8 @@ import org.xml.sax.SAXException;
 import com.box.sdk.BoxAPIConnection;
 import com.box.sdk.BoxAPIException;
 import com.box.sdk.BoxFile;
+import com.box.sdk.BoxFolder;
+import com.box.sdk.BoxFolder.Info;
 import com.box.sdk.BoxSharedLink;
 
 import edu.umd.lib.exception.BoxCustomException;
@@ -60,11 +63,27 @@ public class BoxUpdateProcessor implements Processor {
     try {
       BoxFile file = new BoxFile(api, file_ID);
       BoxFile.Info info = file.getInfo();
-      String filepath = config.get("syncFolder") + info.getName();
-      BoxSharedLink.Permissions permissions = new BoxSharedLink.Permissions();
-      permissions.setCanDownload(true);// Can download
-      permissions.setCanPreview(true);// Can preview
-      BoxSharedLink sharedLink = file.createSharedLink(BoxSharedLink.Access.OPEN, null, permissions);
+
+      String parentId = info.getParent().getID();
+      Stack<BoxFolder> paths = this.getParentFolders(api, parentId);
+      String group = "";
+      String category = "";
+
+      String filepath = config.get("syncFolder");
+      String parentFolder = createParentFolder(paths.pop(), filepath);
+      filepath = filepath + "/" + parentFolder;
+
+      if (!paths.isEmpty()) {
+        group = createParentFolder(paths.pop(), filepath);
+        filepath = filepath + "/" + group;
+      }
+      if (!paths.isEmpty()) {
+        category = createParentFolder(paths.pop(), filepath);
+        filepath = filepath + "/" + category;
+      }
+
+      filepath = filepath + "/" + info.getID() + "_" + info.getName();
+
       FileOutputStream stream = new FileOutputStream(filepath);
       file.download(stream);
       stream.close();
@@ -76,12 +95,15 @@ public class BoxUpdateProcessor implements Processor {
       json.put("id", file_ID);
       json.put("title", file_name);
       json.put("type", tika.detect(download_file));// Detect file type
-      json.put("url", sharedLink.getURL());
+      json.put("url", createSharedLink(file));
       json.put("fileContent", parseToPlainText(download_file));
       json.put("file", encodeFileToBase64Binary(filepath));
       json.put("genre", "BoxContent");// Hardcoded
+      json.put("group", group);
+      json.put("category", category);
+      json.put("filePath", filepath);
 
-      download_file.delete();// Delete the file which was down loaded
+      // download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");
       // log.info("File" + json.toString());
     } catch (BoxAPIException e) {
@@ -116,6 +138,58 @@ public class BoxUpdateProcessor implements Processor {
   }
 
   /****
+   * Get List of ParentFolders
+   *
+   * @param api
+   * @param parentId
+   * @return
+   */
+  private Stack<BoxFolder> getParentFolders(BoxAPIConnection api, String parentId) {
+    BoxFolder folder = new BoxFolder(api, parentId);
+    Stack<BoxFolder> paths = new Stack<BoxFolder>();
+    while (folder != null) {
+      paths.add(folder);
+      Info folderInfo = folder.getInfo();
+      if (folderInfo.getParent() != null) {
+        folder = new BoxFolder(api, folderInfo.getParent().getID());
+      } else {
+        folder = null;
+      }
+    }
+    return paths;
+  }
+
+  /***
+   * CreateParentFolders in Storage Path
+   *
+   * @param folder
+   * @param currentPath
+   * @return
+   */
+  private String createParentFolder(BoxFolder folder, String currentPath) {
+    String folderName = folder.getInfo().getName();
+    File directory = new File(currentPath + "/" + folderName);
+    if (!directory.exists()) {
+      directory.mkdir();
+    }
+    return folderName;
+  }
+
+  /****
+   * CreateSharedLink for the file
+   *
+   * @param file
+   * @return
+   */
+  private String createSharedLink(BoxFile file) {
+    BoxSharedLink.Permissions permissions = new BoxSharedLink.Permissions();
+    permissions.setCanDownload(true);// Can download
+    permissions.setCanPreview(true);// Can preview
+    BoxSharedLink sharedLink = file.createSharedLink(BoxSharedLink.Access.OPEN, null, permissions);
+    return sharedLink.getURL();
+  }
+
+  /****
    * Encode File to Base64BinaryString
    *
    * @param fileName
@@ -124,7 +198,6 @@ public class BoxUpdateProcessor implements Processor {
    */
   private static String encodeFileToBase64Binary(String fileName)
       throws IOException {
-
     File file = new File(fileName);
     byte[] bytes = loadFile(file);
     byte[] encoded = Base64.encodeBase64(bytes);
