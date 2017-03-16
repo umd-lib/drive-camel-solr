@@ -35,8 +35,10 @@ public class SolrRouter extends RouteBuilder {
   private String maxCacheTries = "";
   private String propertiesName = "";
   private String pollInterval = "";
-  private String syncFolder = "";
   private String solrBaseUrl = "";
+  private String backupUserName = "";
+  private String localStorage = "";
+  private String boxStorage = "";
 
   Map<String, String> config = new HashMap<String, String>();
 
@@ -63,8 +65,10 @@ public class SolrRouter extends RouteBuilder {
     config.put("appUserName", appUserName);
     config.put("maxCacheTries", maxCacheTries);
     config.put("propertiesName", propertiesName);
-    config.put("syncFolder", syncFolder);
     config.put("solrBaseUrl", solrBaseUrl);
+    config.put("backupUserName", backupUserName);
+    config.put("localStorage", localStorage);
+    config.put("boxStorage", boxStorage);
 
     /**
      * A generic error handler (specific to this RouteBuilder)
@@ -178,6 +182,14 @@ public class SolrRouter extends RouteBuilder {
     .end();
 
 
+  }
+
+  public String getBackupUserName() {
+    return backupUserName;
+  }
+
+  public void setBackupUserName(String backupUserName) {
+    this.backupUserName = backupUserName;
   }
 
   /**
@@ -330,13 +342,6 @@ public class SolrRouter extends RouteBuilder {
     this.pollInterval = pollInterval;
   }
 
-  public String getSyncFolder() {
-    return syncFolder;
-  }
-
-  public void setSyncFolder(String boxTempStore) {
-    this.syncFolder = boxTempStore;
-  }
 
   public String getSolrBaseUrl() {
     return solrBaseUrl;
@@ -344,6 +349,22 @@ public class SolrRouter extends RouteBuilder {
 
   public void setSolrBaseUrl(String solrBaseUrl) {
     this.solrBaseUrl = solrBaseUrl;
+  }
+
+  public String getLocalStorage() {
+    return localStorage;
+  }
+
+  public void setLocalStorage(String localStorage) {
+    this.localStorage = localStorage;
+  }
+
+  public String getBoxStorage() {
+    return boxStorage;
+  }
+
+  public void setBoxStorage(String boxStorage) {
+    this.boxStorage = boxStorage;
   }
 
 }

@@ -51,10 +51,10 @@ public class BoxDeleteProcessor implements Processor {
       SolrDocumentList list = response.getResults();
       if (list.size() > 0) {
         SolrDocument document = list.get(0);
-        String localFilePath = (String) document.getFieldValue("localfilePath");
+        String localFilePath = (String) document.getFieldValue("localStoragePath");
         File download_file = new File(localFilePath);
         download_file.delete();
-        log.info("File with FileId" + file_ID + "Deleted from LocalStorage");
+        log.info("File with FileId:" + file_ID + ", Deleted from LocalStorage");
       }
     } catch (Exception e) {
       /****
