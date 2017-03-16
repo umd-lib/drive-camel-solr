@@ -16,6 +16,7 @@ import edu.umd.lib.process.BoxPollEventProcessor;
 import edu.umd.lib.process.BoxUpdateProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
 
+
 /**
  * SolrRouter Contains all Route Configuration for Box and Solr Integration
  * <p>
@@ -35,6 +36,7 @@ public class SolrRouter extends RouteBuilder {
   private String propertiesName = "";
   private String pollInterval = "";
   private String syncFolder = "";
+  private String solrBaseUrl = "";
 
   Map<String, String> config = new HashMap<String, String>();
 
@@ -62,6 +64,7 @@ public class SolrRouter extends RouteBuilder {
     config.put("maxCacheTries", maxCacheTries);
     config.put("propertiesName", propertiesName);
     config.put("syncFolder", syncFolder);
+    config.put("solrBaseUrl", solrBaseUrl);
 
     /**
      * A generic error handler (specific to this RouteBuilder)
@@ -130,7 +133,7 @@ public class SolrRouter extends RouteBuilder {
     from("direct:deleted.box")
     .routeId("BoxDeleteProcessor")
     .log("Creating JSON for Solr Delete Route.")
-    .process(new BoxDeleteProcessor())
+    .process(new BoxDeleteProcessor(config))
     .to("direct:delete.solr");
 
     /**
@@ -173,6 +176,7 @@ public class SolrRouter extends RouteBuilder {
     .to("{{email.uri}}").doCatch(Exception.class)
     .log("Error Occurred While Sending Email to specified to address.")
     .end();
+
 
   }
 
@@ -332,6 +336,14 @@ public class SolrRouter extends RouteBuilder {
 
   public void setSyncFolder(String boxTempStore) {
     this.syncFolder = boxTempStore;
+  }
+
+  public String getSolrBaseUrl() {
+    return solrBaseUrl;
+  }
+
+  public void setSolrBaseUrl(String solrBaseUrl) {
+    this.solrBaseUrl = solrBaseUrl;
   }
 
 }

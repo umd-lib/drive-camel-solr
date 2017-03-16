@@ -52,6 +52,7 @@
             <property name="propertiesName" value="${box.properties_name}" />
             <property name="pollInterval" value="${box.poll_interval}" />
             <property name="syncFolder" value="${box.sync_folder}" />
+            <property name="solrBaseUrl" value="${solr.baseUrl}" />
         </bean>
 
         <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">

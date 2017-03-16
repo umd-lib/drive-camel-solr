@@ -24,6 +24,9 @@ Create a Schema using the below definion
   <field name="_version_" type="long"     indexed="true"  stored="true"/>
   <field name="file" type="binary"     indexed="false"  stored="true"/>
   <field name="genre"      type="string"   indexed="true"  stored="true"  multiValued="false" />
+  <field name="group" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="category" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="localfilePath" type="string" indexed="true" stored="true" required="true" multiValued="false" />
   <!--Binary data type. The data should be sent/retrieved in as Base64 encoded Strings -->
     
 

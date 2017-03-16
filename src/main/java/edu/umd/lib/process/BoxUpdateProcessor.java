@@ -65,29 +65,61 @@ public class BoxUpdateProcessor implements Processor {
       BoxFile.Info info = file.getInfo();
 
       String parentId = info.getParent().getID();
+      /****
+       * From Box we receive the file's info. We do not know the fullPath in
+       * Box. The path can be computed by traversing through parent folders till
+       * the root folder is reached. Note: This will get the path only till the
+       * parent folder till which the Box App user has access.
+       */
       Stack<BoxFolder> paths = this.getParentFolders(api, parentId);
       String group = "";
       String category = "";
 
-      String filepath = config.get("syncFolder");
-      String parentFolder = createParentFolder(paths.pop(), filepath);
-      filepath = filepath + "/" + parentFolder;
+      String Localfilepath = config.get("syncFolder");
+      /****
+       * We need to create the same folder in localStorage. Loop through the
+       * folders from the stack and create the folders and add to the current
+       * filePath String. The first folder is the parent folder to which the app
+       * user has access.
+       */
+      String parentFolder = createParentFolder(paths.pop(), Localfilepath);
+      Localfilepath = Localfilepath + "/" + parentFolder;
 
       if (!paths.isEmpty()) {
-        group = createParentFolder(paths.pop(), filepath);
-        filepath = filepath + "/" + group;
+        /****
+         * First folderName after the root folder indicates the group to which
+         * the file belongs, This information is stored in Solr under group
+         * field
+         */
+        group = createParentFolder(paths.pop(), Localfilepath);
+        Localfilepath = Localfilepath + "/" + group;
       }
       if (!paths.isEmpty()) {
-        category = createParentFolder(paths.pop(), filepath);
-        filepath = filepath + "/" + category;
+        /****
+         * second folderName after the root folder indicates the category to
+         * which the file belongs, This information is stored in Solr under
+         * category field
+         */
+        category = createParentFolder(paths.pop(), Localfilepath);
+        Localfilepath = Localfilepath + "/" + category;
       }
 
-      filepath = filepath + "/" + info.getID() + "_" + info.getName();
+      /****
+       * We only need to create the path in local storage and box storage with
+       * group and categories
+       */
+      Localfilepath = Localfilepath + "/" + info.getID() + "_" + info.getName();
 
-      FileOutputStream stream = new FileOutputStream(filepath);
+      FileOutputStream stream = new FileOutputStream(Localfilepath);
       file.download(stream);
       stream.close();
-      File download_file = new File(filepath);
+      /****
+       * Files are downloaded to the localStoragePath. File ID is used to
+       * uniquely identify the files from different paths. Since we are trimming
+       * the folder path after first and second level we need to make sure files
+       * with same name from different path are not overwritten in localStorage.
+       */
+      File download_file = new File(Localfilepath);
 
       Tika tika = new Tika();
       JSONObject json = new JSONObject();
@@ -97,11 +129,11 @@ public class BoxUpdateProcessor implements Processor {
       json.put("type", tika.detect(download_file));// Detect file type
       json.put("url", createSharedLink(file));
       json.put("fileContent", parseToPlainText(download_file));
-      json.put("file", encodeFileToBase64Binary(filepath));
+      json.put("file", encodeFileToBase64Binary(Localfilepath));
       json.put("genre", "BoxContent");// Hardcoded
       json.put("group", group);
       json.put("category", category);
-      json.put("filePath", filepath);
+      json.put("localfilePath", Localfilepath);
 
       // download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");
