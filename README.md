@@ -26,7 +26,7 @@ Create a Schema using the below definion
   <field name="category" type="string" indexed="true" stored="true" required="true" multiValued="false" />
   <field name="localStoragePath" type="string" indexed="true" stored="true" required="true" multiValued="false" />
   <field name="boxStoragePath" type="string" indexed="true" stored="true" required="true" multiValued="false" />
-  <field name="boxStorageFolderId" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="boxStorageFileId" type="string" indexed="true" stored="true" required="true" multiValued="false" />
 
  <!-- field to use to determine and enforce document uniqueness. -->
  <uniqueKey>id</uniqueKey>

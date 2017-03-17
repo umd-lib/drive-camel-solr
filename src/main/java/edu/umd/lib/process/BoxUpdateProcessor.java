@@ -172,7 +172,8 @@ public class BoxUpdateProcessor implements Processor {
        * Upload the file to the boxStorage
        */
       FileInputStream inputstream = new FileInputStream(Localfilepath);
-      boxStorage.uploadFile(inputstream, info.getID() + "_" + version + "_" + info.getName());
+      BoxFile.Info backedUpFile = boxStorage.uploadFile(inputstream,
+          info.getID() + "_" + version + "_" + info.getName());
       inputstream.close();
 
       Tika tika = new Tika();
@@ -188,7 +189,7 @@ public class BoxUpdateProcessor implements Processor {
       json.put("category", category);
       json.put("localStoragePath", Localfilepath);
       json.put("boxStoragePath", boxStoragePath);
-      json.put("boxStorageFolderId", boxStorage.getID());
+      json.put("boxStorageFileId", backedUpFile.getID());
 
       // download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");

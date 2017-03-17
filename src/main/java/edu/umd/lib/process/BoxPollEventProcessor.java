@@ -58,6 +58,7 @@ public class BoxPollEventProcessor implements Processor {
     loadStreamPosition();
     BoxAuthService box = new BoxAuthService(config);
     BoxAPIConnection api = box.getBoxAPIConnection();// Get Box Connection
+    box.getBoxAPIConnectionasBackUpUser();// Create BackUp User
     producer = exchange.getContext().createProducerTemplate();
     pollBox(api);
   }
