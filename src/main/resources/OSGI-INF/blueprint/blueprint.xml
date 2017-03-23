@@ -7,7 +7,7 @@
         <!-- OSGI blueprint property placeholder -->
         <cm:property-placeholder id="properties" persistent-id="edu.umd.lib.boxsolrconnector" update-strategy="reload">
             <cm:default-properties>
-                <cm:property name="solr.baseUrl" value="localhost:8983/solr/box" />
+                <cm:property name="solr.baseUrl" value="localhost:8080/solr/collection1" />
                 <cm:property name="solr.commitWithin" value="10000" />
                 <cm:property name="error.maxRedeliveries" value="2" />
 
@@ -31,10 +31,12 @@
                 <cm:property name="box.private_key_file" value="" />
                 <cm:property name="box.private_key_password" value="" />
                 <cm:property name="box.app_user_name" value="" />
+                <cm:property name="box.backup_user_name" value="" />                
                 <cm:property name="box.max_cache_entries" value="" />
                 <cm:property name="box.properties_name" value="" />
-                <cm:property name="box.poll_interval" value="120s" />
-                <cm:property name="box.sync_folder" value="" />
+                <cm:property name="box.poll_interval" value="300s" />
+                <cm:property name="box.local_storage" value="" />
+                <cm:property name="box.box_storage" value="" />
             </cm:default-properties>
         </cm:property-placeholder>
 
@@ -51,7 +53,10 @@
             <property name="maxCacheTries" value="${box.max_cache_entries}" />
             <property name="propertiesName" value="${box.properties_name}" />
             <property name="pollInterval" value="${box.poll_interval}" />
-            <property name="syncFolder" value="${box.sync_folder}" />
+            <property name="localStorage" value="${box.local_storage}" />
+            <property name="boxStorage" value="${box.box_storage}" />
+            <property name="solrBaseUrl" value="${solr.baseUrl}" />
+            <property name="backupUserName" value="${box.backup_user_name}" />
         </bean>
 
         <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">

@@ -11,10 +11,9 @@ Create a Schema using the below definion
 ```XML
 <schema name="box core" version="1.1">
 
-   <fieldtype name="string"  class="solr.StrField" sortMissingLast="true" omitNorms="true"/>
-   <fieldType name="long" class="solr.TrieLongField" precisionStep="0" positionIncrementGap="0"/>
-   <fieldType name="text" class="solr.TextField" positionIncrementGap="100"/>
-   <fieldtype name="binary" class="solr.BinaryField"/>
+  <fieldtype name="string"  class="solr.StrField" sortMissingLast="true" omitNorms="true"/>
+  <fieldType name="long" class="solr.TrieLongField" precisionStep="0" positionIncrementGap="0"/>
+  <fieldType name="text" class="solr.TextField" positionIncrementGap="100"/>
   <!-- general -->
   <field name="id"        type="string"   indexed="true"  stored="true"  multiValued="false" required="true"/>
   <field name="type"      type="string"   indexed="true"  stored="true"  multiValued="false" /> 
@@ -22,10 +21,12 @@ Create a Schema using the below definion
   <field name="url"       type="string"   indexed="true"  stored="true"  multiValued="true"/>
   <field name="fileContent" type="text" indexed="true" stored="false" multiValued="true"/>
   <field name="_version_" type="long"     indexed="true"  stored="true"/>
-  <field name="file" type="binary"     indexed="false"  stored="true"/>
-  <field name="genre"      type="string"   indexed="true"  stored="true"  multiValued="false" />
-  <!--Binary data type. The data should be sent/retrieved in as Base64 encoded Strings -->
-    
+  <field name="genre" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="group" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="category" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="localStoragePath" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="boxStoragePath" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="boxStorageFileId" type="string" indexed="true" stored="true" required="true" multiValued="false" />
 
  <!-- field to use to determine and enforce document uniqueness. -->
  <uniqueKey>id</uniqueKey>

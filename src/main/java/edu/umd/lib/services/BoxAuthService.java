@@ -31,8 +31,8 @@ public class BoxAuthService {
   private String PRIVATE_KEY_FILE = "";
   private String PRIVATE_KEY_PASSWORD = "";
   private String APP_USER_NAME = "";
+  private String BACKUP_USER_NAME = "";
   private int MAX_CACHE_ENTRIES = 100;
-  private String USER_ID = "";
 
   Map<String, String> config;
   /***
@@ -49,10 +49,11 @@ public class BoxAuthService {
     PRIVATE_KEY_FILE = config.get("privateKeyFile");
     PRIVATE_KEY_PASSWORD = config.get("privateKeyPassword");
     APP_USER_NAME = config.get("appUserName");
+    BACKUP_USER_NAME = config.get("backupUserName");
     MAX_CACHE_ENTRIES = Integer.parseInt(config.get("maxCacheTries"));
-    USER_ID = "";
     this.config = config;
   }
+
 
   /****
    * This Method connects to box API using APP user and returns the Connection.
@@ -65,24 +66,58 @@ public class BoxAuthService {
 
     if(this.config.containsKey("appUserId")){
 
-      this.USER_ID = config.get("appUserId");
-      BoxAPIConnection api = getAppUserConnection();
-      log.info("User ID already known:" + this.USER_ID);
+      String USER_ID = config.get("appUserId");
+      BoxAPIConnection api = getAppUserConnection(USER_ID);
+      log.info("User ID already known:" + USER_ID);
       return api;
 
     } else {
       log.info("User ID not known:");
       BoxDeveloperEditionAPIConnection api = getAppEnterpriseConnection();
-      String appUserID = getAppUserID(api);
+      String appUserID = getAppUserID(api, this.APP_USER_NAME);
       if (appUserID.equalsIgnoreCase("0")) {
         log.info("Create new APP user ID since App user not found in Box.");
-        appUserID = createAppUser(api);
+        appUserID = createAppUser(api, this.APP_USER_NAME);
       } else {
         log.info("App user found:" + appUserID);
       }
-      this.USER_ID = appUserID;
+      String USER_ID = appUserID;
       this.config.put("appUserId", USER_ID);
-      api = getAppUserConnection();
+      api = getAppUserConnection(USER_ID);
+      return api;
+    }
+
+  }
+
+  /****
+   * This Method connects to box API using APP user and returns the Connection.
+   *
+   * @return
+   * @throws IOException
+   * @throws BoxCustomException
+   */
+  public BoxAPIConnection getBoxAPIConnectionasBackUpUser() throws IOException, BoxCustomException {
+
+    if (this.config.containsKey("backupUserId")) {
+
+      String USER_ID = config.get("backupUserId");
+      BoxAPIConnection api = getAppUserConnection(USER_ID);
+      log.info("User ID already known:" + USER_ID);
+      return api;
+
+    } else {
+      log.info("User ID not known:");
+      BoxDeveloperEditionAPIConnection api = getAppEnterpriseConnection();
+      String appUserID = getAppUserID(api, this.BACKUP_USER_NAME);
+      if (appUserID.equalsIgnoreCase("0")) {
+        log.info("Create new APP user ID since App user not found in Box.");
+        appUserID = createAppUser(api, this.BACKUP_USER_NAME);
+      } else {
+        log.info("App user found:" + appUserID);
+      }
+      String USER_ID = appUserID;
+      this.config.put("backupUserId", USER_ID);
+      api = getAppUserConnection(USER_ID);
       return api;
     }
 
@@ -137,7 +172,7 @@ public class BoxAuthService {
    * @throws IOException
    * @throws BoxCustomException
    */
-  public BoxDeveloperEditionAPIConnection getAppUserConnection()
+  public BoxDeveloperEditionAPIConnection getAppUserConnection(String userID)
       throws IOException, BoxCustomException {
 
     log.info("Connecting to Box as APP User.");
@@ -159,7 +194,7 @@ public class BoxAuthService {
       // implement IAccessTokenCache to store and retrieve access tokens
       // appropriately for your environment.
       IAccessTokenCache accessTokenCache = new InMemoryLRUAccessTokenCache(MAX_CACHE_ENTRIES);
-      api = BoxDeveloperEditionAPIConnection.getAppUserConnection(USER_ID, CLIENT_ID,
+      api = BoxDeveloperEditionAPIConnection.getAppUserConnection(userID, CLIENT_ID,
           CLIENT_SECRET, encryptionPref, accessTokenCache);
 
     } catch (BoxAPIException e) {
@@ -177,12 +212,13 @@ public class BoxAuthService {
    *
    * @throws BoxCustomException
    */
-  public String createAppUser(BoxDeveloperEditionAPIConnection api) throws IOException, BoxCustomException {
+  public String createAppUser(BoxDeveloperEditionAPIConnection api, String appUserName)
+      throws IOException, BoxCustomException {
 
     CreateUserParams params = new CreateUserParams();
     try {
       params.setSpaceAmount(1073741824); //
-      BoxUser.Info user = BoxUser.createAppUser(api, APP_USER_NAME, params);
+      BoxUser.Info user = BoxUser.createAppUser(api, appUserName, params);
       return user.getID();
     } catch (BoxAPIException e) {
       throw new BoxCustomException(
@@ -199,30 +235,17 @@ public class BoxAuthService {
    * @param api
    * @return
    */
-  public String getAppUserID(BoxAPIConnection api) {
+  public String getAppUserID(BoxAPIConnection api, String userName) {
     Iterable<Info> user = BoxUser.getAllEnterpriseUsers(api);
     log.info("Connecting to Box to retrive all Enterprise user and find App user ID.");
     for (Info info : user) {
-      if (APP_USER_NAME.equalsIgnoreCase(info.getName())) {
+      if (userName.equalsIgnoreCase(info.getName())) {
         return info.getID();
       }
     }
     return "0";
   }
 
-  /**
-   * @return the uSER_ID
-   */
-  public String getUSER_ID() {
-    return USER_ID;
-  }
 
-  /**
-   * @param uSER_ID
-   *          the uSER_ID to set
-   */
-  public void setUSER_ID(String uSER_ID) {
-    USER_ID = uSER_ID;
-  }
 
 }

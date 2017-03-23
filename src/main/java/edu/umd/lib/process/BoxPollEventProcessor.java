@@ -58,6 +58,7 @@ public class BoxPollEventProcessor implements Processor {
     loadStreamPosition();
     BoxAuthService box = new BoxAuthService(config);
     BoxAPIConnection api = box.getBoxAPIConnection();// Get Box Connection
+    box.getBoxAPIConnectionasBackUpUser();// Create BackUp User
     producer = exchange.getContext().createProducerTemplate();
     pollBox(api);
   }
@@ -83,14 +84,13 @@ public class BoxPollEventProcessor implements Processor {
           body = event.toString();
           headers = new HashMap<String, String>();
 
-          BoxItem.Info srcInfo = (BoxItem.Info) event.getSourceInfo();
-          if (srcInfo != null) {
-            headers.put("item_id", srcInfo.getID());
-            headers.put("item_name", srcInfo.getName());
-            headers.put("item_path", getFullBoxPath(srcInfo));
-            headers.put("event_type", event.getType().toString());
-
-            if (srcInfo instanceof BoxFile.Info) {
+          if (event.getSourceInfo() instanceof BoxFile.Info) {
+            BoxItem.Info srcInfo = (BoxItem.Info) event.getSourceInfo();
+            if (srcInfo != null) {
+              headers.put("item_id", srcInfo.getID());
+              headers.put("item_name", srcInfo.getName());
+              headers.put("item_path", getFullBoxPath(srcInfo));
+              headers.put("event_type", event.getType().toString());
               switch (event.getType()) {
               case ITEM_UPLOAD:
                 updateHeaders(api, srcInfo, headers);
