@@ -172,9 +172,22 @@ public class BoxUpdateProcessor implements Processor {
        * Upload the file to the boxStorage
        */
       FileInputStream inputstream = new FileInputStream(Localfilepath);
-      BoxFile.Info backedUpFile = boxStorage.uploadFile(inputstream,
-          info.getID() + "_" + version + "_" + info.getName());
-      inputstream.close();
+
+      String backedUpFileId = "";
+      try {
+        BoxFile.Info backedUpFile = boxStorage.uploadFile(inputstream,
+            info.getID() + "_" + version + "_" + info.getName());
+        inputstream.close();
+        backedUpFileId = backedUpFile.getID();
+      } catch (BoxAPIException e) {
+        if (e.getResponseCode() == 409) {
+          log.info("File name already in use, Already backedup");
+        } else {
+          throw new BoxCustomException(
+              "File cannot be backed up in box storage.");
+        }
+
+      }
 
       Tika tika = new Tika();
       JSONObject json = new JSONObject();
@@ -189,14 +202,14 @@ public class BoxUpdateProcessor implements Processor {
       json.put("category", category);
       json.put("localStoragePath", Localfilepath);
       json.put("boxStoragePath", boxStoragePath);
-      json.put("boxStorageFileId", backedUpFile.getID());
+      json.put("boxStorageFileId", backedUpFileId);
 
       // download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");
       // log.info("File" + json.toString());
     } catch (BoxAPIException e) {
       throw new BoxCustomException(
-          "File cannot be found. Please provide access for APP User.");
+          "File cannot be found or backedup. Please provide access for APP User.");
     }
 
   }
