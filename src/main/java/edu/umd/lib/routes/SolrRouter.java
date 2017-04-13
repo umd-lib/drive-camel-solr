@@ -16,7 +16,6 @@ import edu.umd.lib.process.BoxPollEventProcessor;
 import edu.umd.lib.process.BoxUpdateProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
 
-
 /**
  * SolrRouter Contains all Route Configuration for Box and Solr Integration
  * <p>
@@ -74,113 +73,112 @@ public class SolrRouter extends RouteBuilder {
      * A generic error handler (specific to this RouteBuilder)
      */
     onException(Exception.class)
-    .routeId("ExceptionRoute")
-    .process(new ExceptionProcessor())
-    .handled(true)
-    .maximumRedeliveries("{{camel.maximum_tries}}")
-    .redeliveryDelay("{{camel.redelivery_delay}}")
-    .backOffMultiplier("{{camel.backoff_multiplier}}")
-    .useExponentialBackOff()
-    .maximumRedeliveryDelay("{{camel.maximum_redelivery_delay}}")
-    .to("direct:send_error_email");
+        .routeId("ExceptionRoute")
+        .process(new ExceptionProcessor())
+        .handled(true)
+        .maximumRedeliveries("{{camel.maximum_tries}}")
+        .redeliveryDelay("{{camel.redelivery_delay}}")
+        .backOffMultiplier("{{camel.backoff_multiplier}}")
+        .useExponentialBackOff()
+        .maximumRedeliveryDelay("{{camel.maximum_redelivery_delay}}")
+        .to("direct:send_error_email");
 
     from("timer://runOnce?repeatCount=0&delay=5000&period=" + pollInterval)
-    .to("direct:default.pollBox");
+        .to("direct:default.pollBox");
 
     /**
      * Parse Request from Box Web hooks. Each Parameter from web hook is set
      * into camel exchange header to make it available for camel routes
      */
     from("direct:default.pollBox")
-    .routeId("BoxPollRouter")
-    .log("Polling Box for events")
-    .process(new BoxPollEventProcessor(config));
+        .routeId("BoxPollRouter")
+        .log("Polling Box for events")
+        .process(new BoxPollEventProcessor(config));
 
     /**
      * Route Based on Event Types Event Types handled :uploaded,
      * copied,moved,deleted
      */
     from("direct:route.events")
-    .routeId("CamelBoxRouter")
-    .choice()
-    .when(PredicateBuilder.and(uploaded, file))
-    .to("direct:uploaded.box")
-    .when(PredicateBuilder.and(copied, file))
-    .to("direct:uploaded.box")
-    .when(PredicateBuilder.and(moved, file))
-    .to("direct:uploaded.box")
-    .when(PredicateBuilder.and(uploaded, file))
-    .to("direct:uploaded.box")
-    .when(PredicateBuilder.and(undelete, file))
-    .to("direct:uploaded.box")
-    .when(PredicateBuilder.and(created, file))
-    .to("direct:uploaded.box")
-    .when(PredicateBuilder.and(deleted, file))
-    .to("direct:deleted.box")
-    .otherwise()
-    .to("direct:default.box");
+        .routeId("CamelBoxRouter")
+        .choice()
+        .when(PredicateBuilder.and(uploaded, file))
+        .to("direct:uploaded.box")
+        .when(PredicateBuilder.and(copied, file))
+        .to("direct:uploaded.box")
+        .when(PredicateBuilder.and(moved, file))
+        .to("direct:uploaded.box")
+        .when(PredicateBuilder.and(uploaded, file))
+        .to("direct:uploaded.box")
+        .when(PredicateBuilder.and(undelete, file))
+        .to("direct:uploaded.box")
+        .when(PredicateBuilder.and(created, file))
+        .to("direct:uploaded.box")
+        .when(PredicateBuilder.and(deleted, file))
+        .to("direct:deleted.box")
+        .otherwise()
+        .to("direct:default.box");
 
     /**
      * Handle Box Events and Parameters and prepare JSON request for Solr
      * update.
      */
     from("direct:uploaded.box")
-    .routeId("BoxUpdateProcessor")
-    .log("Creating JSON for Solr Update Route with file information.")
-    .process(new BoxUpdateProcessor(config))
-    .to("direct:update.solr");
+        .routeId("BoxUpdateProcessor")
+        .log("Creating JSON for Solr Update Route with file information.")
+        .process(new BoxUpdateProcessor(config))
+        .to("direct:update.solr");
 
     /**
      * Handle Box Events and Parameters and prepare JSON request for Solr
      * Delete.
      */
     from("direct:deleted.box")
-    .routeId("BoxDeleteProcessor")
-    .log("Creating JSON for Solr Delete Route.")
-    .process(new BoxDeleteProcessor(config))
-    .to("direct:delete.solr");
+        .routeId("BoxDeleteProcessor")
+        .log("Creating JSON for Solr Delete Route.")
+        .process(new BoxDeleteProcessor(config))
+        .to("direct:delete.solr");
 
     /**
      * Connect to Solr and update the Box information
      */
     from("direct:update.solr")
-    .routeId("SolrUpdater")
-    .log(LoggingLevel.INFO, "Indexing Box Document in Solr")
-    .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
-    .setHeader(Exchange.HTTP_METHOD).simple("POST")
-    .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-    .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .routeId("SolrUpdater")
+        .log(LoggingLevel.INFO, "Indexing Box Document in Solr")
+        .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+        .setHeader(Exchange.HTTP_METHOD).simple("POST")
+        .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
+        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /**
      * Connect to Solr and delete the Box information
      */
     from("direct:delete.solr")
-    .routeId("SolrDeleter")
-    .log(LoggingLevel.INFO, "Deleting Solr Object")
-    .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
-    .setHeader(Exchange.HTTP_METHOD).simple("POST")
-    .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-    .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .routeId("SolrDeleter")
+        .log(LoggingLevel.INFO, "Deleting Solr Object")
+        .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+        .setHeader(Exchange.HTTP_METHOD).simple("POST")
+        .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
+        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /***
      * Default Box Route
      */
     from("direct:default.box")
-    .routeId("DefaultboxListener")
-    .log(LoggingLevel.INFO, "Default Action Listener for Listener");
+        .routeId("DefaultboxListener")
+        .log(LoggingLevel.INFO, "Default Action Listener for Listener");
 
     /****
      * Send Email with error message to email address from Configuration file
      */
     from("direct:send_error_email").doTry().routeId("SendErrorEmail")
-    .log("processing a email to be sent using SendErrorEmail Route.")
-    .setHeader("subject", simple(emailSubject))
-    .setHeader("From", simple("{{email.from}}"))
-    .setHeader("To", simple("{{email.to}}"))
-    .to("{{email.uri}}").doCatch(Exception.class)
-    .log("Error Occurred While Sending Email to specified to address.")
-    .end();
-
+        .log("processing a email to be sent using SendErrorEmail Route.")
+        .setHeader("subject", simple(emailSubject))
+        .setHeader("From", simple("{{email.from}}"))
+        .setHeader("To", simple("{{email.to}}"))
+        .to("{{email.uri}}").doCatch(Exception.class)
+        .log("Error Occurred While Sending Email to specified to address.")
+        .end();
 
   }
 
@@ -341,7 +339,6 @@ public class SolrRouter extends RouteBuilder {
   public void setPollInterval(String pollInterval) {
     this.pollInterval = pollInterval;
   }
-
 
   public String getSolrBaseUrl() {
     return solrBaseUrl;
