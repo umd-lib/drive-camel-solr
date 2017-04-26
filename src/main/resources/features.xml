@@ -13,8 +13,9 @@
     <feature version="${camel.version}">camel-solr</feature>
     <feature version="${camel.version}">camel-zipfile</feature>
     <feature version="${camel.version}">camel-gson</feature>    
-    <bundle dependency="true">wrap:mvn:org.apache.tika/tika-core/0.7</bundle>
-    <bundle dependency="true">wrap:mvn:org.apache.tika/tika-parsers/0.7</bundle>
+    <bundle dependency="true">mvn:org.apache.tika/tika-bundle/1.14</bundle>
+    <bundle dependency="true">mvn:org.apache.tika/tika-core/1.14</bundle>
+    <bundle dependency="true">mvn:org.apache.tika/tika-parsers/1.14</bundle>
     <bundle dependency="true">wrap:mvn:org.json/json/20090211</bundle>
     <bundle dependency="true">wrap:mvn:org.ow2.asm/asm-commons/5.0.3</bundle>
     <bundle dependency="true">wrap:mvn:org.bouncycastle/bcprov-jdk15on/1.52</bundle>

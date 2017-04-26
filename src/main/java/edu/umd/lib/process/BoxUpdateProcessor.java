@@ -20,6 +20,19 @@ import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.CompositeParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.pdf.*;
+import org.apache.tika.parser.txt.*;
+import org.apache.tika.parser.microsoft.*;
+import org.apache.tika.parser.html.*;
+import org.apache.tika.parser.rtf.*;
+import org.apache.tika.parser.xml.*;
+import org.apache.tika.parser.microsoft.ooxml.*;
+import org.apache.tika.parser.jpeg.*;
+import org.apache.tika.parser.image.*;
+
+
 import org.apache.tika.sax.BodyContentHandler;
 import org.json.JSONObject;
 import org.xml.sax.SAXException;
@@ -40,8 +53,9 @@ import edu.umd.lib.services.BoxAuthService;
  * file that needs to be indexed.
  *
  * @author rameshb
- *
+ 
  */
+@SuppressWarnings("unused")
 public class BoxUpdateProcessor implements Processor {
 
   private static Logger log = Logger.getLogger(BoxUpdateProcessor.class);
@@ -191,12 +205,12 @@ public class BoxUpdateProcessor implements Processor {
 
       Tika tika = new Tika();
       JSONObject json = new JSONObject();
-
+      String fileType = tika.detect(download_file);
       json.put("id", file_ID);
       json.put("title", file_name);
-      json.put("type", tika.detect(download_file));// Detect file type
+      json.put("type", fileType);// Detect file type
       json.put("url", createSharedLink(file));
-      json.put("fileContent", parseToPlainText(download_file));
+      json.put("fileContent", parseToPlainText(download_file, fileType));
       json.put("genre", "BoxContent");// Hardcoded
       json.put("group", group);
       json.put("category", category);
@@ -206,7 +220,7 @@ public class BoxUpdateProcessor implements Processor {
 
       // download_file.delete();// Delete the file which was down loaded
       exchange.getIn().setBody("[" + json.toString() + "]");
-      // log.info("File" + json.toString());
+      //log.info("File" + json.toString());
     } catch (BoxAPIException e) {
       throw new BoxCustomException(
           "File cannot be found or backedup. Please provide access for APP User.");
@@ -223,17 +237,47 @@ public class BoxUpdateProcessor implements Processor {
    * @throws SAXException
    * @throws TikaException
    */
-  public String parseToPlainText(File file) throws IOException, SAXException, TikaException {
-    BodyContentHandler handler = new BodyContentHandler();
+  /** In karaf these files are not auto loaded and should be included in 
+   imports even though not used explicitly
+   * import org.apache.tika.parser.AutoDetectParser;
+   * import org.apache.tika.parser.CompositeParser;
+   * import org.apache.tika.parser.ParseContext;
+   * import org.apache.tika.parser.pdf.*;
+   * import org.apache.tika.parser.txt.*;
+   * import org.apache.tika.parser.microsoft.*;
+   * import org.apache.tika.parser.html.*;
+   * import org.apache.tika.parser.rtf.*;
+   * import org.apache.tika.parser.xml.*;
+   * import org.apache.tika.parser.microsoft.ooxml.*;
+   * import org.apache.tika.parser.jpeg.*;
+   * import org.apache.tika.parser.image.*;
+   * **/
+  public String parseToPlainText(File file, String fileType) throws IOException, SAXException, TikaException {
 
     AutoDetectParser parser = new AutoDetectParser();
+    BodyContentHandler handler = new BodyContentHandler();
     Metadata metadata = new Metadata();
     try {
+
+
+      ParseContext pcontext = new ParseContext();
       InputStream targetStream = new FileInputStream(file.getAbsolutePath());
-      parser.parse(targetStream, handler, metadata);
+      
+      if (fileType.equalsIgnoreCase("text/plain")) {
+        TXTParser TexTParser = new TXTParser();
+        TexTParser.parse(targetStream, handler, metadata, pcontext);
+      } else if (fileType.equalsIgnoreCase("application/pdf")) {
+        PDFParser pdfparser = new PDFParser();
+        pdfparser.parse(targetStream, handler, metadata, pcontext);
+      } else {
+        parser.parse(targetStream, handler, metadata, pcontext);
+      }      
+      if( handler.toString().equalsIgnoreCase("")){
+        log.info("Error Extracting file content for fileType: "+fileType);
+      }
       return handler.toString();
     } catch (Exception e) {
-      e.printStackTrace();
+      log.info("Error:"+e.getMessage()+" for file of type :"+fileType);
       return "Empty String";
     }
   }
