@@ -4,10 +4,10 @@
 
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>edu.umd.lib</groupId>
-	<artifactId>box-camel-solr</artifactId>
+	<artifactId>drive-camel-solr</artifactId>
 	<version>0.1-SNAPSHOT</version>
 
-	<name>box-camel-solr</name>
+	<name>drive-camel-solr</name>
 	<packaging>bundle</packaging>
 
 	<properties>
@@ -39,6 +39,7 @@
 			<artifactId>camel-core</artifactId>
 			<version>${camel.version}</version>
 			<scope>provided</scope>
+			
 		</dependency>
 		
 		<dependency>
@@ -147,10 +148,28 @@
 		</dependency>
 		
 		<dependency>
-			<groupId>com.box</groupId>
-			<artifactId>box-java-sdk</artifactId>
-			<version>2.1.1</version>
-		</dependency>
+	      <groupId>com.google.apis</groupId>
+	      <artifactId>google-api-services-drive</artifactId>
+	      <version>v3-rev75-1.22.0</version>
+	    </dependency>
+	    
+	    <dependency>
+	      <groupId>com.google.api-client</groupId>
+	      <artifactId>google-api-client</artifactId>
+	      <version>1.22.0</version>
+	    </dependency>
+	    
+	    <dependency>
+	      <groupId>com.google.oauth-client</groupId>
+	      <artifactId>google-oauth-client-jetty</artifactId>
+	      <version>1.22.0</version>
+	    </dependency>
+	
+	    <dependency>
+	      <groupId>com.google.apis</groupId>
+	      <artifactId>google-api-services-oauth2</artifactId>
+	      <version>v1-rev129-1.22.0</version>
+	    </dependency>
 		
 	</dependencies>
 	<build>
@@ -209,7 +228,7 @@
 				</executions>
 				<configuration>
 					<instructions>
-						<Bundle-SymbolicName>box-camel-solr-bundle</Bundle-SymbolicName>
+						<Bundle-SymbolicName>drive-camel-solr-bundle</Bundle-SymbolicName>
 						<Private-Package>edu.umd.lib.*</Private-Package>
 						<Import-Package>*</Import-Package>
 					</instructions>
@@ -235,7 +254,7 @@
 									<classifier>features</classifier>
 								</artifact>
 								<artifact>
-									<file>${project.build.outputDirectory}/edu.umd.lib.boxsolrconnector.cfg</file>
+									<file>${project.build.outputDirectory}/edu.umd.lib.drivesolrconnector.cfg</file>
 									<type>cfg</type>
 									<classifier>configuration</classifier>
 								</artifact>

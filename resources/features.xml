@@ -3,7 +3,7 @@
   <repository>mvn:org.apache.camel.karaf/apache-camel/${camel.version}/xml/features</repository>
 
   <feature name="drive-camel-solr" version="${project.version}" start-level="50">
-    <details>Installs the Drive Solr Camel Route</details>
+    <details>Installs the drive Solr Camel Route</details>
     <bundle>mvn:edu.umd.lib/drive-camel-solr/${project.version}</bundle>
     <feature version="${camel.version}">camel</feature>
     <feature version="${camel.version}">camel-http4</feature>

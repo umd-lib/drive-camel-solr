@@ -24,14 +24,16 @@
                 <cm:property name="email.to" value="" />
                 <cm:property name="email.uri" value="smtp://localhost:25" />
 
-                
-                <cm:property name="drive.clientsecret" value="//Users//audani//Desktop//drive integration//client_secret.json" />
-                <cm:property name="drive.app_user_name" value="Drive Integration" />
+              
+                <cm:property name="drive.clientsecret" value="" />
+               
+                <cm:property name="drive.app_user_name" value="" />
+                          
                 <cm:property name="drive.max_cache_entries" value="" />
-                <cm:property name="drive.properties_name" value="googledrive.properties" />
+                <cm:property name="drive.properties_name" value="" />
                 <cm:property name="drive.poll_interval" value="300s" />
-                <cm:property name="drive.local_storage" value="//Users//audani//Desktop//drive integration" />
-                
+                <cm:property name="drive.local_storage" value="" />
+             
             </cm:default-properties>
         </cm:property-placeholder>
 
@@ -40,12 +42,15 @@
         <bean id="SolrRouter" class="edu.umd.lib.routes.SolrRouter">
           
             <property name="clientSecret" value="${drive.clientsecret}" />
+            >
             <property name="appUserName" value="${drive.app_user_name}" />
             <property name="maxCacheTries" value="${drive.max_cache_entries}" />
             <property name="propertiesName" value="${drive.properties_name}" />
             <property name="pollInterval" value="${drive.poll_interval}" />
             <property name="localStorage" value="${drive.local_storage}" />
+           
             <property name="solrBaseUrl" value="${solr.baseUrl}" />
+            
         </bean>
 
         <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
