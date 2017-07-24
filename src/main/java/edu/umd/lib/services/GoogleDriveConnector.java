@@ -84,24 +84,5 @@ public class GoogleDriveConnector {
     GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream(this.clientSecretFileName))
         .createScoped(SCOPES);
     return credential;
-
-    /*
-     * InputStream in = new FileInputStream(this.clientSecretFileName);
-     * GoogleClientSecrets clientSecrets =
-     * GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
-     * 
-     * // Build flow and trigger user authorization request. // TODO: modify
-     * builder so user and API developer can be treated separately
-     * GoogleAuthorizationCodeFlow flow = new
-     * GoogleAuthorizationCodeFlow.Builder( HTTP_TRANSPORT, JSON_FACTORY,
-     * clientSecrets, SCOPES) .setDataStoreFactory(this.dataStoreFactory)
-     * .setAccessType("offline") .build(); Credential credential = new
-     * AuthorizationCodeInstalledApp( flow, new
-     * LocalServerReceiver()).authorize("user"); log.info(
-     * "Credentials saved to " + this.dataStoreDir.getAbsolutePath());
-     * 
-     * return credential;
-     */
-
   }
 }
