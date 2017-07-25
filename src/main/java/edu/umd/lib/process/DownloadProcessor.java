@@ -4,9 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -20,9 +17,10 @@ import org.xml.sax.SAXException;
 
 public class DownloadProcessor implements Processor {
 
-   /**
+  /**
    * Processes message exchange by creating a JSON for SolrUpdater exchange
    */
+  @Override
   public void process(Exchange exchange) throws Exception {
 
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
@@ -30,9 +28,8 @@ public class DownloadProcessor implements Processor {
     String sourcePath = exchange.getIn().getHeader("source_path", String.class);
     String sourceType = exchange.getIn().getHeader("source_type", String.class);
     String fileStatus = exchange.getIn().getHeader("fileStatus", String.class);
-    String action = exchange.getIn().getHeader("action",String.class);
-    
-    File destItem = new File(sourcePath);
+    String action = exchange.getIn().getHeader("action", String.class);
+    String localFilePath = exchange.getIn().getHeader("local_file_path", String.class);
 
     JSONObject json = new JSONObject();
     json.put("id", sourceID);
@@ -43,13 +40,14 @@ public class DownloadProcessor implements Processor {
     if (sourceType == "file" && "download".equals(action)) {
       Tika tika = new Tika();
       String metadata = exchange.getIn().getHeader("metadata", String.class);
+      File destItem = new File(localFilePath);
 
       json.put("type", tika.detect(destItem));
       json.put("fileContent", parseToPlainText(destItem));
       json.put("metadata", metadata);
-      } else if (sourceType == "file" && "delete".equals(action)) {
-    	 json.put("fileStatus", fileStatus);
-      }
+    } else if (sourceType == "file" && "delete".equals(action)) {
+      json.put("fileStatus", fileStatus);
+    }
 
     exchange.getIn().setBody("[" + json.toString() + "]");
 

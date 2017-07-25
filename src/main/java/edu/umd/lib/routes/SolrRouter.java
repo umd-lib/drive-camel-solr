@@ -2,15 +2,17 @@ package edu.umd.lib.routes;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Predicate;
 import org.apache.camel.builder.RouteBuilder;
-import edu.umd.lib.process.DrivePollEventProcessor;
-import edu.umd.lib.process.ExceptionProcessor;
+
 import edu.umd.lib.process.DriveDeleteProcessor;
 import edu.umd.lib.process.DriveDownloadProcessor;
 import edu.umd.lib.process.DriveMakedirProcessor;
+import edu.umd.lib.process.DrivePollEventProcessor;
+import edu.umd.lib.process.ExceptionProcessor;
 
 /**
  * SolrRouter Contains all Route Configuration for Drive and Solr Integration
@@ -20,15 +22,13 @@ import edu.umd.lib.process.DriveMakedirProcessor;
  */
 public class SolrRouter extends RouteBuilder {
 
-  
   private String clientSecret;
   private String appUserName;
   private String maxCacheTries;
-  private String propertiesName;
+  private String propertiesFile;
   private String pollInterval;
   private String solrBaseUrl;
   private String localStorage;
-  
 
   Map<String, String> config = new HashMap<String, String>();
 
@@ -38,18 +38,16 @@ public class SolrRouter extends RouteBuilder {
   Predicate delete = header("action").isEqualTo("delete");
   Predicate download = header("action").isEqualTo("download");
   Predicate makedir = header("action").isEqualTo("make_directory");
-  
-  
+
   @Override
   public void configure() throws Exception {
-    
+
     config.put("clientSecretFile", clientSecret);
     config.put("appName", appUserName);
     config.put("maxCacheTries", maxCacheTries);
-    config.put("propertiesName", propertiesName);
+    config.put("propertiesFile", propertiesFile);
     config.put("solrBaseUrl", solrBaseUrl);
     config.put("localStorage", localStorage);
-    
 
     /**
      * A generic error handler (specific to this RouteBuilder)
@@ -77,7 +75,6 @@ public class SolrRouter extends RouteBuilder {
         .log("Polling Drive for events")
         .process(new DrivePollEventProcessor(config));
 
-    
     /**
      * ActionListener: receives exchanges resulting from polling cloud account
      * changes & redirects them based on the required action specified in
@@ -105,18 +102,18 @@ public class SolrRouter extends RouteBuilder {
         .routeId("FileDownloader")
         .log("Request received to download a file from the Drive.")
         .process(new DriveDownloadProcessor(config));
-    //    .to("direct:update.solr");
-        
+    // .to("direct:update.solr");
+
     /**
      * FileDeleter: receives message with info about a file to delete & handles
      * by deleting file on local system & sending message to SolrDeleter
-    */ 
+     */
     from("direct:delete.filesys")
         .routeId("FileDeleter")
-        .log("Deleting a file on local file system")
+        .log("Deleting file")
         .process(new DriveDeleteProcessor());
-       // .to("direct:delete.solr");
-    
+    // .to("direct:delete.solr");
+
     /**
      * DirectoryMaker: receives a message with info about a folder to make &
      * handles by making that directory on the local file system.
@@ -125,12 +122,11 @@ public class SolrRouter extends RouteBuilder {
         .routeId("DirectoryMaker")
         .log("Creating a directory on local file system")
         .process(new DriveMakedirProcessor());
-     //   .to("direct:update.solr");
+    // .to("direct:update.solr");
 
-        
     /**
-     * 
-     * 
+     *
+     *
      * Connect to Solr and update the Box information
      */
     from("direct:update.solr")
@@ -150,7 +146,7 @@ public class SolrRouter extends RouteBuilder {
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}");
-    //    .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+    // .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /***
      * Default Box Route
@@ -173,8 +169,7 @@ public class SolrRouter extends RouteBuilder {
 
   }
 
-  
-    /**
+  /**
    * @return the clientSecret
    */
   public String getClientSecret() {
@@ -189,8 +184,6 @@ public class SolrRouter extends RouteBuilder {
     this.clientSecret = clientSecret;
   }
 
-  
-  
   /**
    * @return the appUserName
    */
@@ -224,16 +217,16 @@ public class SolrRouter extends RouteBuilder {
   /**
    * @return the propertiesName
    */
-  public String getPropertiesName() {
-    return propertiesName;
+  public String getPropertiesFile() {
+    return propertiesFile;
   }
 
   /**
    * @param propertiesName
    *          the propertiesName to set
    */
-  public void setPropertiesName(String propertiesName) {
-    this.propertiesName = propertiesName;
+  public void setPropertiesFile(String propertiesFile) {
+    this.propertiesFile = propertiesFile;
   }
 
   /**

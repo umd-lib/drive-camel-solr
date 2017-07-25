@@ -16,23 +16,23 @@ public class DriveDownloadProcessor extends DownloadProcessor {
 
   private static Logger log = Logger.getLogger(DriveDownloadProcessor.class);
   private Map<String, String> config;
-  
-  public DriveDownloadProcessor(Map<String,String> config) {
-	  
-	  this.config = config;
+
+  public DriveDownloadProcessor(Map<String, String> config) {
+
+    this.config = config;
   }
 
   @Override
   public void process(Exchange exchange) throws Exception {
 
-	  GoogleDriveConnector connector = new GoogleDriveConnector(this.config);
-	  Drive service = connector.getDriveService();
+    GoogleDriveConnector connector = new GoogleDriveConnector(this.config);
+    Drive service = connector.getDriveService();
 
     // Get file & get its file type
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
     File file = service.files().get(sourceID)
-    		.setSupportsTeamDrives(true)
-    		.execute();
+        .setSupportsTeamDrives(true)
+        .execute();
     String sourceMimeType = file.getMimeType();
     String downloadMimeType = sourceMimeType;
 
@@ -57,10 +57,10 @@ public class DriveDownloadProcessor extends DownloadProcessor {
     if (downloadMimeType != null) {
 
       // Get download destination
-      String sourcePath = exchange.getIn().getHeader("source_path", String.class);
-   
+      String fullFilePath = this.config.get("localStorage") + exchange.getIn().getHeader("source_path", String.class);
+
       // Create paths to destination file if they don't exist
-      java.io.File outputFile = new java.io.File(sourcePath);
+      java.io.File outputFile = new java.io.File(fullFilePath);
       if (!outputFile.exists()) {
         java.io.File dir = outputFile.getParentFile();
         dir.mkdirs();
