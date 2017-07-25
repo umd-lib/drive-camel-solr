@@ -12,24 +12,19 @@ import com.google.api.services.drive.model.File;
 
 import edu.umd.lib.services.GoogleDriveConnector;
 
-public class GoogleDriveDownloadProcessor extends DownloadProcessor {
+public class DriveDownloadProcessor extends DownloadProcessor {
 
-  private static Logger log = Logger.getLogger(GoogleDriveDownloadProcessor.class);
+  private static Logger log = Logger.getLogger(DriveDownloadProcessor.class);
   private Map<String, String> config;
   
-  public GoogleDriveDownloadProcessor(Map<String,String> config) {
+  public DriveDownloadProcessor(Map<String,String> config) {
 	  
 	  this.config = config;
   }
 
   @Override
   public void process(Exchange exchange) throws Exception {
-    // To download a file from Google Drive, you need an authorized drive client
-    // service and a file ID
 
-    
-    //ProducerTemplate dummy = new DefaultCamelContext().createProducerTemplate();
-   // GoogleDriveConnector connector = new GoogleDriveConnector(account, dummy);
 	  GoogleDriveConnector connector = new GoogleDriveConnector(this.config);
 	  Drive service = connector.getDriveService();
 
@@ -41,10 +36,8 @@ public class GoogleDriveDownloadProcessor extends DownloadProcessor {
     String sourceMimeType = file.getMimeType();
     String downloadMimeType = sourceMimeType;
 
-    // Choose a download type
-    // All options listed here:
-    // https://developers.google.com/drive/v3/web/manage-downloads
-    if (sourceMimeType.equals("application/vnd.google-apps.document") || sourceMimeType.equals("application/pdf")) {
+    // If the file is a Google document, we set the mime type
+    if (sourceMimeType.equals("application/vnd.google-apps.document")) {
       // Download google documents as PDFs
       downloadMimeType = "application/pdf";
     } else if (sourceMimeType.equals("application/vnd.google-apps.spreadsheet")) {
@@ -86,7 +79,6 @@ public class GoogleDriveDownloadProcessor extends DownloadProcessor {
 
     } else {
       log.info("Cannot download google file of type: " + sourceMimeType);
-      // service.files().get(sourceID).executeMediaAndDownloadTo(out);
     }
 
   }

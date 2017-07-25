@@ -2,17 +2,15 @@ package edu.umd.lib.routes;
 
 import java.util.HashMap;
 import java.util.Map;
-
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Predicate;
-
 import org.apache.camel.builder.RouteBuilder;
-
-
 import edu.umd.lib.process.DrivePollEventProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
-import edu.umd.lib.process.GoogleDriveDownloadProcessor;
+import edu.umd.lib.process.DriveDeleteProcessor;
+import edu.umd.lib.process.DriveDownloadProcessor;
+import edu.umd.lib.process.DriveMakedirProcessor;
 
 /**
  * SolrRouter Contains all Route Configuration for Drive and Solr Integration
@@ -24,7 +22,6 @@ public class SolrRouter extends RouteBuilder {
 
   
   private String clientSecret;
-  
   private String appUserName;
   private String maxCacheTries;
   private String propertiesName;
@@ -40,17 +37,11 @@ public class SolrRouter extends RouteBuilder {
 
   Predicate delete = header("action").isEqualTo("delete");
   Predicate download = header("action").isEqualTo("download");
+  Predicate makedir = header("action").isEqualTo("make_directory");
   
   
   @Override
   public void configure() throws Exception {
-
-    System.out.println("Client Secret:"+clientSecret);
-    System.out.println("app name:"+appUserName);
-    System.out.println("properties file:"+propertiesName);
-    System.out.println("local storage:"+localStorage);
-    System.out.println("poll interval:"+pollInterval);
-    System.out.println("Max cache tries:" +maxCacheTries);
     
     config.put("clientSecretFile", clientSecret);
     config.put("appName", appUserName);
@@ -98,6 +89,8 @@ public class SolrRouter extends RouteBuilder {
         .choice()
         .when(download)
         .to("direct:download.filesys")
+        .when(makedir)
+        .to("direct:makedir.filesys")
         .when(delete)
         .to("direct:delete.filesys")
         .otherwise()
@@ -111,19 +104,29 @@ public class SolrRouter extends RouteBuilder {
     from("direct:download.filesys")
         .routeId("FileDownloader")
         .log("Request received to download a file from the Drive.")
-        .process(new GoogleDriveDownloadProcessor(config));
+        .process(new DriveDownloadProcessor(config));
     //    .to("direct:update.solr");
         
     /**
      * FileDeleter: receives message with info about a file to delete & handles
      * by deleting file on local system & sending message to SolrDeleter
-     
+    */ 
     from("direct:delete.filesys")
         .routeId("FileDeleter")
         .log("Deleting a file on local file system")
-        .process(new DeleteProcessor(config))
-        .to("direct:delete.solr");
-*/
+        .process(new DriveDeleteProcessor());
+       // .to("direct:delete.solr");
+    
+    /**
+     * DirectoryMaker: receives a message with info about a folder to make &
+     * handles by making that directory on the local file system.
+     */
+    from("direct:makedir.filesys")
+        .routeId("DirectoryMaker")
+        .log("Creating a directory on local file system")
+        .process(new DriveMakedirProcessor());
+     //   .to("direct:update.solr");
+
         
     /**
      * 
@@ -146,8 +149,8 @@ public class SolrRouter extends RouteBuilder {
         .log(LoggingLevel.INFO, "Deleting Solr Object")
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
-        .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}");
+    //    .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /***
      * Default Box Route
