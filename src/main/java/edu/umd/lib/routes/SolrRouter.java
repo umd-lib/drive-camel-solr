@@ -101,8 +101,8 @@ public class SolrRouter extends RouteBuilder {
     from("direct:download.filesys")
         .routeId("FileDownloader")
         .log("Request received to download a file from the Drive.")
-        .process(new DriveDownloadProcessor(config));
-    // .to("direct:update.solr");
+        .process(new DriveDownloadProcessor(config))
+        .to("direct:update.solr");
 
     /**
      * FileDeleter: receives message with info about a file to delete & handles
@@ -111,8 +111,8 @@ public class SolrRouter extends RouteBuilder {
     from("direct:delete.filesys")
         .routeId("FileDeleter")
         .log("Deleting file")
-        .process(new DriveDeleteProcessor());
-    // .to("direct:delete.solr");
+        .process(new DriveDeleteProcessor())
+        .to("direct:delete.solr");
 
     /**
      * DirectoryMaker: receives a message with info about a folder to make &
@@ -135,7 +135,7 @@ public class SolrRouter extends RouteBuilder {
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /**
      * Connect to Solr and delete the Box information
@@ -145,8 +145,8 @@ public class SolrRouter extends RouteBuilder {
         .log(LoggingLevel.INFO, "Deleting Solr Object")
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
-        .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}");
-    // .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /***
      * Default Box Route

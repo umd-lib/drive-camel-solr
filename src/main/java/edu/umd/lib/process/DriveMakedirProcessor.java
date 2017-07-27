@@ -1,16 +1,13 @@
 package edu.umd.lib.process;
 
 import java.io.File;
-import java.nio.file.Paths;
 
 import org.apache.camel.Exchange;
 import org.apache.log4j.Logger;
 
 public class DriveMakedirProcessor extends DownloadProcessor {
 
-
   private static Logger log = Logger.getLogger(DriveMakedirProcessor.class);
-
 
   /**
    * Makes a directory in this project's sync folder. If directory's parent
@@ -19,8 +16,8 @@ public class DriveMakedirProcessor extends DownloadProcessor {
   @Override
   public void process(Exchange exchange) throws Exception {
 
-    String destPath = exchange.getIn().getHeader("source_path", String.class);
-    
+    String destPath = exchange.getIn().getHeader("local_path", String.class);
+
     File dir = new File(destPath);
 
     if (!dir.exists()) {

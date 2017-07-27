@@ -18,7 +18,6 @@ import org.apache.camel.impl.DefaultExchange;
 import org.apache.camel.impl.DefaultMessage;
 import org.apache.log4j.Logger;
 import org.json.JSONException;
-import org.json.JSONObject;
 
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Change;
@@ -43,8 +42,7 @@ public class DrivePollEventProcessor implements Processor {
   private static Logger log = Logger.getLogger(DrivePollEventProcessor.class);
   Map<String, String> config;
   ProducerTemplate producer;
-
-  private String pageToken;
+  final static String categories[] = { "policies", "reports", "guidelines", "links", "workplans", "minutes" };
 
   public DrivePollEventProcessor(Map<String, String> config) {
     this.config = config;
@@ -53,7 +51,6 @@ public class DrivePollEventProcessor implements Processor {
   @Override
   public void process(Exchange exchange) throws Exception {
 
-    // loadPageToken();
     producer = exchange.getContext().createProducerTemplate();
     GoogleDriveConnector gd = new GoogleDriveConnector(this.config);
     Drive service = gd.getDriveService();
@@ -72,13 +69,6 @@ public class DrivePollEventProcessor implements Processor {
     if (!propFile.exists()) {
 
       downloadAllFiles(service);
-
-      // save latest page token
-      // StartPageToken response = service.changes().getStartPageToken()
-      // .setSupportsTeamDrives(true)
-      // .execute();
-      // this.pageToken = response.getStartPageToken();
-      // updatePageToken(this.pageToken);
 
     } else
 
@@ -109,28 +99,27 @@ public class DrivePollEventProcessor implements Processor {
             for (Change change : changes.getChanges()) {
 
               File changeItem = change.getFile();
-              log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName()
-                  + "\t" + changeItem.getDescription() + "\t" + changeItem.getTrashed());
+              log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName());
 
               String sourcePath = getSourcePath(service, changeItem);
               log.info("Source Path of changed file:" + sourcePath);
 
-              log.info(change.values());
-
-              if (sourcePath.contains("published")) {
-                if (change.getRemoved() || changeItem.getTrashed()) {
+              if ("published".equals(sourcePath.split("//")[2])) {
+                if ((change.getRemoved() || changeItem.getTrashed())
+                    && !"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
 
                   log.info("Delete request");
-                  sendDeleteRequest(service, changeItem, sourcePath);
+                  sendDeleteRequest(service, change, sourcePath);
 
                 } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
                   String directoryPath = this.config.get("localStorage") + sourcePath;
                   java.io.File dir = new java.io.File(directoryPath);
                   if (!dir.exists()) {
                     log.info("Makedir request");
-                    sendMakedirRequest(service, changeItem, directoryPath);
+                    sendMakedirRequest(service, directoryPath);
                   }
                 } else {
+
                   String filePath = this.config.get("localStorage") + sourcePath;
                   java.io.File file = new java.io.File(filePath);
                   if (!file.exists()) {
@@ -170,11 +159,12 @@ public class DrivePollEventProcessor implements Processor {
    * @param file
    * @throws IOException
    */
-  private void sendMakedirRequest(Drive service, File file, String directoryPath) throws IOException {
+  private void sendMakedirRequest(Drive service, String directoryPath) throws IOException {
 
     HashMap<String, String> headers = new HashMap<String, String>();
 
-    headers.put("source_path", directoryPath);
+    headers.put("action", "make_directory");
+    headers.put("local_path", directoryPath);
 
     sendActionExchange(headers, "");
 
@@ -188,22 +178,19 @@ public class DrivePollEventProcessor implements Processor {
    * @param file
    * @throws IOException
    */
-  private void sendDeleteRequest(Drive service, File changeItem, String sourcePath) throws IOException {
+  private void sendDeleteRequest(Drive service, Change change, String sourcePath) throws IOException {
 
     HashMap<String, String> headers = new HashMap<String, String>();
 
     headers.put("action", "delete");
-    headers.put("source_id", changeItem.getId());
-    headers.put("details", "remove_childen");
-    headers.put("source_path", sourcePath);
-    headers.put("source_name", changeItem.getName());
+    headers.put("source_id", change.getFileId());
+    File deletedFile = change.getFile();
 
-    if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
-      headers.put("source_type", "folder");
-    } else {
-      headers.put("source_type", "file");
-    }
-
+    // file source path of the deleted file
+    headers.put("url", getSourcePath(service, deletedFile));
+    headers.put("source_name", deletedFile.getName());
+    headers.put("local_path", this.config.get("localStorage") + sourcePath);
+    headers.put("source_type", "file");
     sendActionExchange(headers, "");
 
   }
@@ -237,12 +224,12 @@ public class DrivePollEventProcessor implements Processor {
       for (TeamDrive teamDrive : teamDrives) {
         log.info("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
 
-        StringBuilder path = new StringBuilder(config.get("localStorage"));
+        // StringBuilder path = new StringBuilder(config.get("localStorage"));
         File publishedFolder = accessPublishedFolder(service, teamDrive);
 
         if (publishedFolder != null) {
-          path.append("//" + teamDrive.getName() + "//" + "published");
-          accessPublishedFiles(service, publishedFolder, teamDrive, path);
+          // path.append("//" + teamDrive.getName() + "//" + "published");
+          accessPublishedFiles(service, publishedFolder, teamDrive);
         }
 
         StartPageToken response = service.changes().getStartPageToken()
@@ -282,7 +269,7 @@ public class DrivePollEventProcessor implements Processor {
     return null;
   }
 
-  public void accessPublishedFiles(Drive service, File file, TeamDrive td, StringBuilder path) throws JSONException {
+  public void accessPublishedFiles(Drive service, File file, TeamDrive td) throws JSONException {
 
     try {
 
@@ -307,13 +294,13 @@ public class DrivePollEventProcessor implements Processor {
 
           log.info("File Name:" + pubFile.getName());
           log.info("Mime type:" + pubFile.getMimeType());
-
+          String path = getSourcePath(service, pubFile);
           if ("application/vnd.google-apps.folder".equals(pubFile.getMimeType())) {
-            StringBuilder folderPath = new StringBuilder(path).append("//").append(pubFile.getName());
-            sendMakedirRequest(service, file, folderPath.toString());
-            accessPublishedFiles(service, pubFile, td, folderPath);
+
+            sendMakedirRequest(service, this.config.get("localStorage") + path);
+            accessPublishedFiles(service, pubFile, td);
           } else {
-            sendDownloadRequest(service, pubFile, new StringBuilder(path).append("//" + pubFile.getName()).toString());
+            sendDownloadRequest(service, pubFile, path);
           }
 
         }
@@ -338,18 +325,28 @@ public class DrivePollEventProcessor implements Processor {
   private void sendDownloadRequest(Drive service, File file, String path) throws IOException, JSONException {
 
     HashMap<String, String> headers = new HashMap<String, String>();
+
     String localPath = this.config.get("localStorage") + path;
 
     headers.put("action", "download");
     headers.put("source_type", "file");
     headers.put("source_id", file.getId());
     headers.put("source_name", file.getName());
-    headers.put("source_path", path);
-    headers.put("local_file_path", localPath);
+    headers.put("local_path", localPath);
+    headers.put("url", path);
 
-    JSONObject meta = new JSONObject();
-    meta.put("description", file.getDescription());
-    headers.put("metadata", meta.toString());
+    String paths[] = path.split("//");
+    String group = paths[1];
+
+    headers.put("group", group);
+
+    if (paths.length > 3) {
+      for (String category : categories) {
+        if (paths[3].equals(category)) {
+          headers.put("category", category);
+        }
+      }
+    }
 
     sendActionExchange(headers, "");
 

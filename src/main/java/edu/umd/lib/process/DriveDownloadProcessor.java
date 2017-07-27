@@ -57,7 +57,7 @@ public class DriveDownloadProcessor extends DownloadProcessor {
     if (downloadMimeType != null) {
 
       // Get download destination
-      String fullFilePath = this.config.get("localStorage") + exchange.getIn().getHeader("source_path", String.class);
+      String fullFilePath = exchange.getIn().getHeader("local_path", String.class);
 
       // Create paths to destination file if they don't exist
       java.io.File outputFile = new java.io.File(fullFilePath);
