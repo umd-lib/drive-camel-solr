@@ -7,6 +7,7 @@ import java.io.InputStream;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+import org.apache.log4j.Logger;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -16,6 +17,8 @@ import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
 public class DownloadProcessor implements Processor {
+
+  private static Logger log = Logger.getLogger(DownloadProcessor.class);
 
   /**
    * Processes message exchange by creating a JSON for SolrUpdater exchange
@@ -36,18 +39,23 @@ public class DownloadProcessor implements Processor {
     json.put("title", sourceName);
     json.put("storagePath", sourcePath);
     json.put("genre", "GoogleContent");
+    // json.put("group", group); // Group name (could be same as Team Drive
+    // name. I.e., SSDR)
+    // json.put("category", category); // E.g., "policies" from path.
+    // SSDR/published/policies/
+    // json.put("url", url); // The Google Drive file URL
 
     if (sourceType == "file" && "download".equals(action)) {
       Tika tika = new Tika();
-      String metadata = exchange.getIn().getHeader("metadata", String.class);
       File destItem = new File(localFilePath);
 
       json.put("type", tika.detect(destItem));
       json.put("fileContent", parseToPlainText(destItem));
-      json.put("metadata", metadata);
     } else if (sourceType == "file" && "delete".equals(action)) {
       json.put("fileStatus", fileStatus);
     }
+
+    log.info(json);
 
     exchange.getIn().setBody("[" + json.toString() + "]");
 

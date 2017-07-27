@@ -101,8 +101,8 @@ public class SolrRouter extends RouteBuilder {
     from("direct:download.filesys")
         .routeId("FileDownloader")
         .log("Request received to download a file from the Drive.")
-        .process(new DriveDownloadProcessor(config));
-    // .to("direct:update.solr");
+        .process(new DriveDownloadProcessor(config))
+        .to("direct:update.solr");
 
     /**
      * FileDeleter: receives message with info about a file to delete & handles
@@ -135,7 +135,8 @@ public class SolrRouter extends RouteBuilder {
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+    // .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /**
      * Connect to Solr and delete the Box information
