@@ -26,27 +26,31 @@ public class DownloadProcessor implements Processor {
   @Override
   public void process(Exchange exchange) throws Exception {
 
+    log.info(exchange.getIn());
+
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
     String sourceName = exchange.getIn().getHeader("source_name", String.class);
-    String localPath = exchange.getIn().getHeader("local_path", String.class);
+    String storagePath = exchange.getIn().getHeader("local_path", String.class);
     String sourceType = exchange.getIn().getHeader("source_type", String.class);
     String fileStatus = exchange.getIn().getHeader("fileStatus", String.class);
     String action = exchange.getIn().getHeader("action", String.class);
-    String url = exchange.getIn().getHeader("url", String.class);
     String group = exchange.getIn().getHeader("group", String.class);
     String category = exchange.getIn().getHeader("category", String.class);
+
+    // e.g., https://drive.google.com/open?id=0B6YxyGZNOvsqdjM2MFJ5Y2JVanc
+    String url = "https://drive.google.com/open?id=" + sourceID;
 
     JSONObject json = new JSONObject();
     json.put("id", sourceID);
     json.put("title", sourceName);
-    json.put("storagePath", localPath);
-    json.put("genre", "GoogleContent");
+    json.put("storagePath", storagePath);
+    json.put("genre", "Google Drive");
     json.put("url", url);
     json.put("group", group);
 
     if (sourceType == "file" && "download".equals(action)) {
       Tika tika = new Tika();
-      File destItem = new File(localPath);
+      File destItem = new File(storagePath);
       json.put("type", tika.detect(destItem));
       json.put("fileContent", parseToPlainText(destItem));
       json.put("category", category);
