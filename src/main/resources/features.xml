@@ -16,6 +16,13 @@
     <bundle dependency="true">mvn:org.apache.tika/tika-bundle/1.14</bundle>
     <bundle dependency="true">mvn:org.apache.tika/tika-core/1.14</bundle>
     <bundle dependency="true">mvn:org.apache.tika/tika-parsers/1.14</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.apis/google-api-services-drive/v3-rev75-1.22.0</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.api-client/google-api-client/1.22.0</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.oauth-client/google-oauth-client-jetty/1.22.0</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.apis/google-api-services-oauth2/v1-rev129-1.22.0</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.http-client/google-http-client/1.22.0</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.http-client/google-http-client-jackson2/1.22.0</bundle>
+    <bundle dependency="true">wrap:mvn:com.google.http-client/google-http-client-gson/1.22.0</bundle>
     <bundle dependency="true">wrap:mvn:org.json/json/20090211</bundle>
     <bundle dependency="true">wrap:mvn:org.ow2.asm/asm-commons/5.0.3</bundle>
     <bundle dependency="true">wrap:mvn:org.bouncycastle/bcprov-jdk15on/1.52</bundle>
