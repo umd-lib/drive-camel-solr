@@ -11,7 +11,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import org.apache.camel.Exchange;
 import org.apache.log4j.Logger;
 
-public class DriveDeleteProcessor extends DownloadProcessor {
+public class DriveDeleteProcessor extends EventProcessor {
 
   private static Logger log = Logger.getLogger(DriveDeleteProcessor.class);
 
