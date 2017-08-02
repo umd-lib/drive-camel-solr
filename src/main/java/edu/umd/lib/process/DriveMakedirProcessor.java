@@ -5,7 +5,7 @@ import java.io.File;
 import org.apache.camel.Exchange;
 import org.apache.log4j.Logger;
 
-public class DriveMakedirProcessor extends DownloadProcessor {
+public class DriveMakedirProcessor extends EventProcessor {
 
   private static Logger log = Logger.getLogger(DriveMakedirProcessor.class);
 

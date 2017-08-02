@@ -122,7 +122,6 @@ public class SolrRouter extends RouteBuilder {
         .routeId("DirectoryMaker")
         .log("Creating a directory on local file system")
         .process(new DriveMakedirProcessor());
-    // .to("direct:update.solr");
 
     /**
      *

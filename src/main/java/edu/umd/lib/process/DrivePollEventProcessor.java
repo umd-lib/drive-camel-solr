@@ -16,6 +16,8 @@ import org.apache.camel.Processor;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.impl.DefaultExchange;
 import org.apache.camel.impl.DefaultMessage;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONException;
 
@@ -63,8 +65,6 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void poll(Drive service) throws Exception {
 
-    // String propertiesFilePath = this.config.get("localStorage") +
-    // this.config.get("propertiesName");
     java.io.File propFile = new java.io.File(this.config.get("propertiesFile"));
     if (!propFile.exists()) {
 
@@ -83,6 +83,11 @@ public class DrivePollEventProcessor implements Processor {
 
         List<TeamDrive> teamDrives = result.getTeamDrives();
 
+        // Checking for the addition of a new Team Drive. If a new team drive
+        // has been added with a published folder, we download the files inside
+        // the published folder
+        checkForNewTeamDrives(service, teamDrives, propFile);
+
         for (TeamDrive td : teamDrives) {
 
           String pageToken = loadDriveChangesToken(td.getId());
@@ -99,17 +104,22 @@ public class DrivePollEventProcessor implements Processor {
             for (Change change : changes.getChanges()) {
 
               File changeItem = change.getFile();
-              log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName());
+              log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName() + "\t"
+                  + changeItem.getMd5Checksum() + "\t" + changeItem.getOriginalFilename());
 
               String sourcePath = getSourcePath(service, changeItem);
               log.info("Source Path of changed file:" + sourcePath);
 
+              // We are interested only in the changes that occur inside the
+              // published folder
               if ("published".equals(sourcePath.split("//")[2])) {
-                if ((change.getRemoved() || changeItem.getTrashed())
-                    && !"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+                if (change.getRemoved() || changeItem.getTrashed()) {
 
-                  log.info("Delete request");
-                  sendDeleteRequest(service, change, sourcePath);
+                  if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+
+                    log.info("Delete request");
+                    sendDeleteRequest(service, change, sourcePath);
+                  }
 
                 } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
                   String directoryPath = this.config.get("localStorage") + sourcePath;
@@ -123,8 +133,21 @@ public class DrivePollEventProcessor implements Processor {
                   String filePath = this.config.get("localStorage") + sourcePath;
                   java.io.File file = new java.io.File(filePath);
                   if (!file.exists()) {
-                    log.info("Download request");
+                    /*
+                     * if (!changeItem.getOriginalFilename().equals(changeItem.
+                     * getName())) { log.info("File rename request"); String
+                     * oldFilePath = filePath.replace(changeItem.getName(),
+                     * changeItem.getOriginalFilename()); new
+                     * java.io.File(oldFilePath).renameTo(new
+                     * java.io.File(filePath)); } else {
+                     */
+                    log.info("New File download request");
                     sendDownloadRequest(service, changeItem, sourcePath);
+                    // }
+                  } else if (file.exists() && !changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
+                    log.info("Updated file download request");
+                    sendDownloadRequest(service, changeItem, sourcePath);
+
                   }
                 }
               }
@@ -149,6 +172,60 @@ public class DrivePollEventProcessor implements Processor {
 
     }
 
+  }
+
+  public void checkForNewTeamDrives(Drive service, List<TeamDrive> teamDriveList, java.io.File propertiesFile)
+      throws JSONException {
+    try {
+      if (propertiesFile.exists() && !propertiesFile.isDirectory()) {
+        Properties props = new Properties();
+        FileInputStream in = new FileInputStream(propertiesFile);
+        props.load(in);
+
+        if (teamDriveList.size() > props.size()) {
+          for (TeamDrive td : teamDriveList) {
+            if (!props.containsKey("drivetoken_" + td.getId())) {
+              log.info("Team Drive ID:" + td.getId() + "\t Team Drive Name:" + td.getName());
+
+              File publishedFolder = accessPublishedFolder(service, td);
+
+              if (publishedFolder != null) {
+                accessPublishedFiles(service, publishedFolder, td);
+
+                StartPageToken response = service.changes().getStartPageToken()
+                    .setSupportsTeamDrives(true)
+                    .setTeamDriveId(td.getId())
+                    .execute();
+
+                updateDriveChangesToken(td.getId(), response.getStartPageToken());
+              }
+
+            }
+          }
+        }
+
+        in.close();
+      }
+    } catch (FileNotFoundException e) {
+      log.error("Properties file not found" + e.getMessage());
+    } catch (IOException e) {
+      log.error("Properties file cannot be opened" + e.getMessage());
+    }
+
+  }
+
+  public String getMd5ForFile(java.io.File file) {
+    String md5Value = null;
+    FileInputStream is = null;
+    try {
+      is = new FileInputStream(file);
+      md5Value = DigestUtils.md5Hex(IOUtils.toByteArray(is));
+    } catch (IOException e) {
+      log.info("Hey there is an error: " + e);
+    } finally {
+      IOUtils.closeQuietly(is);
+    }
+    return md5Value;
   }
 
   /**
@@ -224,11 +301,10 @@ public class DrivePollEventProcessor implements Processor {
       for (TeamDrive teamDrive : teamDrives) {
         log.info("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
 
-        // StringBuilder path = new StringBuilder(config.get("localStorage"));
         File publishedFolder = accessPublishedFolder(service, teamDrive);
 
         if (publishedFolder != null) {
-          // path.append("//" + teamDrive.getName() + "//" + "published");
+
           accessPublishedFiles(service, publishedFolder, teamDrive);
         }
 
@@ -263,7 +339,6 @@ public class DrivePollEventProcessor implements Processor {
       }
 
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
     return null;
@@ -406,29 +481,6 @@ public class DrivePollEventProcessor implements Processor {
       in.close();
       FileOutputStream out = new FileOutputStream(propFilePath);
       props.setProperty("drivetoken_" + teamDriveId, driveToken);
-      props.store(out, "Drive Page token updated by the program - Do not delete");
-      out.close();
-    } catch (FileNotFoundException e) {
-      log.error("Properties file not found" + e.getMessage());
-    } catch (IOException e) {
-      log.error("Properties file cannot be opened" + e.getMessage());
-    }
-  }
-
-  /****
-   * Update Stream Position to the properties file
-   *
-   * @param streamPosition
-   */
-  public void updatePageToken(String pageToken) {
-    try {
-      String drivePropFile = this.config.get("propertiesName");
-      FileOutputStream out = new FileOutputStream(drivePropFile);
-      FileInputStream in = new FileInputStream(drivePropFile);
-      Properties props = new Properties();
-      props.load(in);
-      in.close();
-      props.setProperty("pagetoken", pageToken);
       props.store(out, "Drive Page token updated by the program - Do not delete");
       out.close();
     } catch (FileNotFoundException e) {

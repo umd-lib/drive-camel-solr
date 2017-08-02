@@ -12,7 +12,7 @@ import com.google.api.services.drive.model.File;
 
 import edu.umd.lib.services.GoogleDriveConnector;
 
-public class DriveDownloadProcessor extends DownloadProcessor {
+public class DriveDownloadProcessor extends EventProcessor {
 
   private static Logger log = Logger.getLogger(DriveDownloadProcessor.class);
   private Map<String, String> config;
@@ -65,6 +65,7 @@ public class DriveDownloadProcessor extends DownloadProcessor {
         java.io.File dir = outputFile.getParentFile();
         dir.mkdirs();
         outputFile.createNewFile();
+
       }
 
       // Export file to output stream

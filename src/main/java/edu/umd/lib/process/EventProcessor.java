@@ -47,9 +47,9 @@ import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
 @SuppressWarnings("unused")
-public class DownloadProcessor implements Processor {
+public class EventProcessor implements Processor {
 
-  private static Logger log = Logger.getLogger(DownloadProcessor.class);
+  private static Logger log = Logger.getLogger(EventProcessor.class);
 
   /**
    * Processes message exchange by creating a JSON for SolrUpdater exchange
@@ -73,13 +73,13 @@ public class DownloadProcessor implements Processor {
 
     JSONObject json = new JSONObject();
     json.put("id", sourceID);
-    json.put("title", sourceName);
-    json.put("storagePath", storagePath);
-    json.put("genre", "Google Drive");
-    json.put("url", url);
-    json.put("group", group);
 
     if (sourceType == "file" && "download".equals(action)) {
+      json.put("title", sourceName);
+      json.put("storagePath", storagePath);
+      json.put("genre", "Google Drive");
+      json.put("url", url);
+      json.put("group", group);
       Tika tika = new Tika();
       File destItem = new File(storagePath);
       String fileType = tika.detect(destItem);

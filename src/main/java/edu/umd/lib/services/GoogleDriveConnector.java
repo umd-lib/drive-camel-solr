@@ -13,7 +13,6 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
 
@@ -21,14 +20,12 @@ public class GoogleDriveConnector {
 
   private final String appName;
   private final String clientSecretFileName;
-  private final java.io.File dataStoreDir;
-  private FileDataStoreFactory dataStoreFactory;
 
   private static Logger log = Logger.getLogger(GoogleDriveConnector.class);
 
   private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
   private static HttpTransport HTTP_TRANSPORT;
-  private static final List<String> SCOPES = Arrays.asList(DriveScopes.DRIVE);
+  private static final List<String> SCOPES = Arrays.asList(DriveScopes.DRIVE, DriveScopes.DRIVE_METADATA);
 
   static {
     try {
@@ -49,14 +46,6 @@ public class GoogleDriveConnector {
 
     this.appName = config.get("appName");
     this.clientSecretFileName = config.get("clientSecretFile");
-    this.dataStoreDir = new java.io.File(config.get("localStorage"),
-        ".credentials/googledrive_" + config.get("appName"));
-    try {
-      this.dataStoreFactory = new FileDataStoreFactory(this.dataStoreDir);
-    } catch (Throwable t) {
-      t.printStackTrace();
-      System.exit(1);
-    }
   }
 
   /**
