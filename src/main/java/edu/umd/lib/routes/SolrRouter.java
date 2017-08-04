@@ -6,68 +6,48 @@ import java.util.Map;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Predicate;
-import org.apache.camel.builder.PredicateBuilder;
 import org.apache.camel.builder.RouteBuilder;
 
-import com.box.sdk.BoxEvent;
-
-import edu.umd.lib.process.BoxDeleteProcessor;
-import edu.umd.lib.process.BoxPollEventProcessor;
-import edu.umd.lib.process.BoxUpdateProcessor;
+import edu.umd.lib.process.DriveDeleteProcessor;
+import edu.umd.lib.process.DriveDownloadProcessor;
+import edu.umd.lib.process.DriveMakedirProcessor;
+import edu.umd.lib.process.DrivePollEventProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
 
 /**
- * SolrRouter Contains all Route Configuration for Box and Solr Integration
+ * SolrRouter Contains all Route Configuration for Drive and Solr Integration
  * <p>
  *
  * @since 1.0
  */
 public class SolrRouter extends RouteBuilder {
 
-  private String clientID = "";
-  private String clientSecret = "";
-  private String enterpriseID = "";
-  private String publicKeyID = "";
-  private String privateKeyFile = "";
-  private String privateKeyPassword = "";
-  private String appUserName = "";
-  private String maxCacheTries = "";
-  private String propertiesName = "";
-  private String pollInterval = "";
-  private String solrBaseUrl = "";
-  private String backupUserName = "";
-  private String localStorage = "";
-  private String boxStorage = "";
+  private String clientSecret;
+  private String appUserName;
+  private String maxCacheTries;
+  private String propertiesFile;
+  private String pollInterval;
+  private String solrBaseUrl;
+  private String localStorage;
 
   Map<String, String> config = new HashMap<String, String>();
 
-  public final String emailSubject = "Exception Occured in Box-Solr Integration, "
+  public final String emailSubject = "Exception Occured in Drive-Solr Integration, "
       + "Total Number of Attempts: {{camel.maximum_tries}} retries.";
 
-  Predicate uploaded = header("event_type").isEqualTo(BoxEvent.Type.ITEM_UPLOAD.toString());
-  Predicate copied = header("event_type").isEqualTo(BoxEvent.Type.ITEM_COPY.toString());
-  Predicate moved = header("event_type").isEqualTo(BoxEvent.Type.ITEM_MOVE.toString());
-  Predicate deleted = header("event_type").isEqualTo(BoxEvent.Type.ITEM_TRASH.toString());
-  Predicate undelete = header("event_type").isEqualTo(BoxEvent.Type.ITEM_UNDELETE_VIA_TRASH.toString());
-  Predicate created = header("event_type").isEqualTo(BoxEvent.Type.ITEM_CREATE.toString());
-  Predicate file = header("item_type").isEqualTo("file");
+  Predicate delete = header("action").isEqualTo("delete");
+  Predicate download = header("action").isEqualTo("download");
+  Predicate makedir = header("action").isEqualTo("make_directory");
 
   @Override
   public void configure() throws Exception {
 
-    config.put("clientID", clientID);
-    config.put("clientSecret", clientSecret);
-    config.put("enterpriseID", enterpriseID);
-    config.put("publicKeyID", publicKeyID);
-    config.put("privateKeyFile", privateKeyFile);
-    config.put("privateKeyPassword", privateKeyPassword);
-    config.put("appUserName", appUserName);
+    config.put("clientSecretFile", clientSecret);
+    config.put("appName", appUserName);
     config.put("maxCacheTries", maxCacheTries);
-    config.put("propertiesName", propertiesName);
+    config.put("propertiesFile", propertiesFile);
     config.put("solrBaseUrl", solrBaseUrl);
-    config.put("backupUserName", backupUserName);
     config.put("localStorage", localStorage);
-    config.put("boxStorage", boxStorage);
 
     /**
      * A generic error handler (specific to this RouteBuilder)
@@ -84,71 +64,77 @@ public class SolrRouter extends RouteBuilder {
         .to("direct:send_error_email");
 
     from("timer://runOnce?repeatCount=0&delay=5000&period=" + pollInterval)
-        .to("direct:default.pollBox");
+        .to("direct:default.pollDrive");
 
     /**
      * Parse Request from Box Web hooks. Each Parameter from web hook is set
      * into camel exchange header to make it available for camel routes
      */
-    from("direct:default.pollBox")
-        .routeId("BoxPollRouter")
-        .log("Polling Box for events")
-        .process(new BoxPollEventProcessor(config));
+    from("direct:default.pollDrive")
+        .routeId("DrivePollRouter")
+        .log("Polling Drive for events")
+        .process(new DrivePollEventProcessor(config));
 
     /**
-     * Route Based on Event Types Event Types handled :uploaded,
-     * copied,moved,deleted
+     * ActionListener: receives exchanges resulting from polling cloud account
+     * changes & redirects them based on the required action specified in
+     * 'action' header
      */
-    from("direct:route.events")
-        .routeId("CamelBoxRouter")
+    from("direct:actions").streamCaching()
+        .routeId("ActionListener")
+        .log("Received an event from Drive polling.")
         .choice()
-        .when(PredicateBuilder.and(uploaded, file))
-        .to("direct:uploaded.box")
-        .when(PredicateBuilder.and(copied, file))
-        .to("direct:uploaded.box")
-        .when(PredicateBuilder.and(moved, file))
-        .to("direct:uploaded.box")
-        .when(PredicateBuilder.and(uploaded, file))
-        .to("direct:uploaded.box")
-        .when(PredicateBuilder.and(undelete, file))
-        .to("direct:uploaded.box")
-        .when(PredicateBuilder.and(created, file))
-        .to("direct:uploaded.box")
-        .when(PredicateBuilder.and(deleted, file))
-        .to("direct:deleted.box")
+        .when(download)
+        .to("direct:download.filesys")
+        .when(makedir)
+        .to("direct:makedir.filesys")
+        .when(delete)
+        .to("direct:delete.filesys")
         .otherwise()
-        .to("direct:default.box");
+        .to("direct:default");
 
     /**
-     * Handle Box Events and Parameters and prepare JSON request for Solr
-     * update.
+     * FileDownloader: receives exchanges with info about a file to download &
+     * its associated cloud account & processes with appropriate
+     * CloudDownloadProcessor determined by 'account_type' header
      */
-    from("direct:uploaded.box")
-        .routeId("BoxUpdateProcessor")
-        .log("Creating JSON for Solr Update Route with file information.")
-        .process(new BoxUpdateProcessor(config))
+    from("direct:download.filesys")
+        .routeId("FileDownloader")
+        .log("Request received to download a file from the Drive.")
+        .process(new DriveDownloadProcessor(config))
         .to("direct:update.solr");
 
     /**
-     * Handle Box Events and Parameters and prepare JSON request for Solr
-     * Delete.
+     * FileDeleter: receives message with info about a file to delete & handles
+     * by deleting file on local system & sending message to SolrDeleter
      */
-    from("direct:deleted.box")
-        .routeId("BoxDeleteProcessor")
-        .log("Creating JSON for Solr Delete Route.")
-        .process(new BoxDeleteProcessor(config))
+    from("direct:delete.filesys")
+        .routeId("FileDeleter")
+        .log("Deleting file")
+        .process(new DriveDeleteProcessor())
         .to("direct:delete.solr");
 
     /**
+     * DirectoryMaker: receives a message with info about a folder to make &
+     * handles by making that directory on the local file system.
+     */
+    from("direct:makedir.filesys")
+        .routeId("DirectoryMaker")
+        .log("Creating a directory on local file system")
+        .process(new DriveMakedirProcessor());
+
+    /**
+     *
+     *
      * Connect to Solr and update the Box information
      */
     from("direct:update.solr")
         .routeId("SolrUpdater")
-        .log(LoggingLevel.INFO, "Indexing Box Document in Solr")
+        .log(LoggingLevel.INFO, "Indexing Drive Document in Solr")
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /**
      * Connect to Solr and delete the Box information
@@ -159,14 +145,14 @@ public class SolrRouter extends RouteBuilder {
         .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
         .setHeader(Exchange.HTTP_METHOD).simple("POST")
         .setHeader(Exchange.HTTP_QUERY).simple("commitWithin={{solr.commitWithin}}")
-        .to("https4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
+        .to("http4://{{solr.baseUrl}}/update?bridgeEndpoint=true");
 
     /***
      * Default Box Route
      */
-    from("direct:default.box")
-        .routeId("DefaultboxListener")
-        .log(LoggingLevel.INFO, "Default Action Listener for Listener");
+    from("direct:default.drive")
+        .routeId("DefaultDriveListener")
+        .log(LoggingLevel.INFO, "Default Action Listener for Drive");
 
     /****
      * Send Email with error message to email address from Configuration file
@@ -182,29 +168,6 @@ public class SolrRouter extends RouteBuilder {
 
   }
 
-  public String getBackupUserName() {
-    return backupUserName;
-  }
-
-  public void setBackupUserName(String backupUserName) {
-    this.backupUserName = backupUserName;
-  }
-
-  /**
-   * @return the clienID
-   */
-  public String getClientID() {
-    return clientID;
-  }
-
-  /**
-   * @param clienID
-   *          the clienID to set
-   */
-  public void setClientID(String clientID) {
-    this.clientID = clientID;
-  }
-
   /**
    * @return the clientSecret
    */
@@ -218,66 +181,6 @@ public class SolrRouter extends RouteBuilder {
    */
   public void setClientSecret(String clientSecret) {
     this.clientSecret = clientSecret;
-  }
-
-  /**
-   * @return the enterpriseID
-   */
-  public String getEnterpriseID() {
-    return enterpriseID;
-  }
-
-  /**
-   * @param enterpriseID
-   *          the enterpriseID to set
-   */
-  public void setEnterpriseID(String enterpriseID) {
-    this.enterpriseID = enterpriseID;
-  }
-
-  /**
-   * @return the publicKeyID
-   */
-  public String getPublicKeyID() {
-    return publicKeyID;
-  }
-
-  /**
-   * @param publicKeyID
-   *          the publicKeyID to set
-   */
-  public void setPublicKeyID(String publicKeyID) {
-    this.publicKeyID = publicKeyID;
-  }
-
-  /**
-   * @return the privateKeyFile
-   */
-  public String getPrivateKeyFile() {
-    return privateKeyFile;
-  }
-
-  /**
-   * @param privateKeyFile
-   *          the privateKeyFile to set
-   */
-  public void setPrivateKeyFile(String privateKeyFile) {
-    this.privateKeyFile = privateKeyFile;
-  }
-
-  /**
-   * @return the privateKeyPassword
-   */
-  public String getPrivateKeyPassword() {
-    return privateKeyPassword;
-  }
-
-  /**
-   * @param privateKeyPassword
-   *          the privateKeyPassword to set
-   */
-  public void setPrivateKeyPassword(String privateKeyPassword) {
-    this.privateKeyPassword = privateKeyPassword;
   }
 
   /**
@@ -313,16 +216,16 @@ public class SolrRouter extends RouteBuilder {
   /**
    * @return the propertiesName
    */
-  public String getPropertiesName() {
-    return propertiesName;
+  public String getPropertiesFile() {
+    return propertiesFile;
   }
 
   /**
    * @param propertiesName
    *          the propertiesName to set
    */
-  public void setPropertiesName(String propertiesName) {
-    this.propertiesName = propertiesName;
+  public void setPropertiesFile(String propertiesFile) {
+    this.propertiesFile = propertiesFile;
   }
 
   /**
@@ -354,14 +257,6 @@ public class SolrRouter extends RouteBuilder {
 
   public void setLocalStorage(String localStorage) {
     this.localStorage = localStorage;
-  }
-
-  public String getBoxStorage() {
-    return boxStorage;
-  }
-
-  public void setBoxStorage(String boxStorage) {
-    this.boxStorage = boxStorage;
   }
 
 }

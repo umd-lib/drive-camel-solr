@@ -3,9 +3,8 @@
   <repository>mvn:org.apache.camel.karaf/apache-camel/${camel.version}/xml/features</repository>
 
   <feature name="drive-camel-solr" version="${project.version}" start-level="50">
-    <details>Installs the Drive Solr Camel Route</details>
+    <details>Installs the drive Solr Camel Route</details>
     <bundle>mvn:edu.umd.lib/drive-camel-solr/${project.version}</bundle>
-    
     <feature version="${camel.version}">camel</feature>
     <feature version="${camel.version}">camel-http4</feature>
     <feature version="${camel.version}">camel-jetty</feature>
@@ -13,23 +12,10 @@
     <feature version="${camel.version}">camel-spring</feature>
     <feature version="${camel.version}">camel-solr</feature>
     <feature version="${camel.version}">camel-zipfile</feature>
-    <feature version="${camel.version}">camel-gson</feature>
-    <feature version="${camel.version}">camel-core</feature>
-       
+    <feature version="${camel.version}">camel-gson</feature>    
     <bundle dependency="true">mvn:org.apache.tika/tika-bundle/1.14</bundle>
     <bundle dependency="true">mvn:org.apache.tika/tika-core/1.14</bundle>
     <bundle dependency="true">mvn:org.apache.tika/tika-parsers/1.14</bundle>
-    
-    <!--bundle dependency='true'>mvn:commons-codec/commons-codec/1.10</bundle-->
-    <bundle dependency='true'>mvn:com.fasterxml.jackson.core/jackson-core/2.1.3</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.api-client/google-api-client/1.22.0</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.apis/google-api-services-drive/v3-rev75-1.22.0</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.http-client/google-http-client/1.22.0</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.http-client/google-http-client-jackson2/1.22.0</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.oauth-client/google-oauth-client/1.22.0</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.oauth-client/google-oauth-client-java6/1.22.0</bundle>
-    <bundle dependency='true'>wrap:mvn:com.google.oauth-client/google-oauth-client-jetty/1.22.0</bundle>
-    
     <bundle dependency="true">wrap:mvn:org.json/json/20090211</bundle>
     <bundle dependency="true">wrap:mvn:org.ow2.asm/asm-commons/5.0.3</bundle>
     <bundle dependency="true">wrap:mvn:org.bouncycastle/bcprov-jdk15on/1.52</bundle>

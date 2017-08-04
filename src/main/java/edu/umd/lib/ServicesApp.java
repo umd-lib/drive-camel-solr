@@ -9,7 +9,7 @@ import edu.umd.lib.routes.SolrRouter;
 /****
  * Main Service App
  *
- * @author rameshb
+ * @author audani
  *
  */
 public class ServicesApp {
@@ -17,7 +17,7 @@ public class ServicesApp {
     CamelContext context = new DefaultCamelContext();
 
     PropertiesComponent propertiesComponent = context.getComponent("properties", PropertiesComponent.class);
-    propertiesComponent.setLocation("classpath:edu.umd.lib.boxsolrconnector.cfg");
+    propertiesComponent.setLocation("classpath:edu.umd.lib.drivesolrconnector.cfg");
     propertiesComponent.setSystemPropertiesMode(PropertiesComponent.SYSTEM_PROPERTIES_MODE_OVERRIDE);
     context.addRoutes(new SolrRouter());
 
