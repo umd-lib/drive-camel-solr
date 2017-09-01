@@ -35,22 +35,34 @@ public class DriveDownloadProcessor extends EventProcessor {
         .execute();
     String sourceMimeType = file.getMimeType();
     String downloadMimeType = sourceMimeType;
+    boolean isGoogleDoc = false;
+    String googleDocExtension = null;
 
     // If the file is a Google document, we set the mime type
     if (sourceMimeType.equals("application/vnd.google-apps.document")) {
-      // Download google documents as PDFs
-      downloadMimeType = "application/pdf";
+      // Download google documents as MS Word files
+      isGoogleDoc = true;
+      googleDocExtension = ".docx";
+      downloadMimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     } else if (sourceMimeType.equals("application/vnd.google-apps.spreadsheet")) {
       // Download google spreadsheets as MS Excel files
+      isGoogleDoc = true;
+      googleDocExtension = ".xlsx";
       downloadMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     } else if (sourceMimeType.equals("application/vnd.google-apps.drawing")) {
       // Download google drawings as jpegs
+      isGoogleDoc = true;
+      googleDocExtension = ".jpg";
       downloadMimeType = "image/jpeg";
     } else if (sourceMimeType.equals("application/vnd.google-apps.presentation")) {
       // Download google slides as MS powerpoint
+      isGoogleDoc = true;
+      googleDocExtension = ".pptx";
       downloadMimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
     } else if (sourceMimeType.equals("application/vnd.google-apps.script")) {
       // Download google apps scripts as JSON
+      isGoogleDoc = true;
+      googleDocExtension = ".json";
       downloadMimeType = "application/vnd.google-apps.script+json";
     }
 
@@ -59,18 +71,27 @@ public class DriveDownloadProcessor extends EventProcessor {
       // Get download destination
       String fullFilePath = exchange.getIn().getHeader("local_path", String.class);
 
+      if (isGoogleDoc) {
+        fullFilePath += googleDocExtension;
+        exchange.getIn().setHeader("local_path", fullFilePath);
+      }
+
       // Create paths to destination file if they don't exist
       java.io.File outputFile = new java.io.File(fullFilePath);
       if (!outputFile.exists()) {
         java.io.File dir = outputFile.getParentFile();
         dir.mkdirs();
         outputFile.createNewFile();
-
       }
 
       // Export file to output stream
       OutputStream out = new FileOutputStream(outputFile);
-      service.files().get(sourceID).executeMediaAndDownloadTo(out);
+
+      if (isGoogleDoc) {
+        service.files().export(sourceID, downloadMimeType).executeMediaAndDownloadTo(out);
+      } else {
+        service.files().get(sourceID).executeMediaAndDownloadTo(out);
+      }
       out.flush();
       out.close();
 
