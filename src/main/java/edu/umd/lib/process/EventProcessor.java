@@ -12,39 +12,22 @@ import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
-
-/**
- * import org.apache.tika.parser.CompositeParser;
- * import org.apache.tika.parser.ParseContext;
- * import org.apache.tika.parser.pdf.*;
- * import org.apache.tika.parser.txt.*;
- * import org.apache.tika.parser.microsoft.*;
- * import org.apache.tika.parser.html.*;
- * import org.apache.tika.parser.rtf.*;
- * import org.apache.tika.parser.xml.*;
- * import org.apache.tika.parser.microsoft.ooxml.*;
- * import org.apache.tika.parser.jpeg.*;
- * import org.apache.tika.parser.image.*;
- */
-
-import org.apache.tika.parser.CompositeParser;
-import org.apache.tika.parser.ParseContext;
-import org.apache.tika.parser.pdf.*;
-import org.apache.tika.parser.txt.*;
-import org.apache.tika.parser.microsoft.*;
-import org.apache.tika.parser.html.*;
-import org.apache.tika.parser.rtf.*;
-import org.apache.tika.parser.xml.*;
-import org.apache.tika.parser.microsoft.ooxml.*;
-import org.apache.tika.parser.jpeg.*;
-import org.apache.tika.parser.image.*;
-
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.pdf.PDFParser;
 import org.apache.tika.parser.txt.TXTParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.json.JSONObject;
 import org.xml.sax.SAXException;
+
+/**
+ * import org.apache.tika.parser.CompositeParser; import
+ * org.apache.tika.parser.ParseContext; import org.apache.tika.parser.pdf.*;
+ * import org.apache.tika.parser.txt.*; import
+ * org.apache.tika.parser.microsoft.*; import org.apache.tika.parser.html.*;
+ * import org.apache.tika.parser.rtf.*; import org.apache.tika.parser.xml.*;
+ * import org.apache.tika.parser.microsoft.ooxml.*; import
+ * org.apache.tika.parser.jpeg.*; import org.apache.tika.parser.image.*;
+ */
 
 @SuppressWarnings("unused")
 public class EventProcessor implements Processor {
@@ -92,7 +75,6 @@ public class EventProcessor implements Processor {
 
     exchange.getIn().setBody("[" + json.toString() + "]");
 
-    log.info(json);
   }
 
   /***

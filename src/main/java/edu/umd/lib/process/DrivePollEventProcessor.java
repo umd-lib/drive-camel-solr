@@ -60,8 +60,8 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   /**
-   * Connects to Box and starts long polling Box events. On an event, sends
-   * exchange to ActionListener and update's account's poll token.
+   * Connects to Drive and starts long polling Drive events. On an event, sends
+   * exchange to ActionListener and updates the poll token.
    */
   public void poll(Drive service) throws Exception {
 
