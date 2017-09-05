@@ -57,6 +57,8 @@ public class EventProcessor implements Processor {
     JSONObject json = new JSONObject();
     json.put("id", sourceID);
 
+    String body = null;
+
     if (sourceType == "file" && "download".equals(action)) {
       json.put("title", sourceName);
       json.put("storagePath", storagePath);
@@ -69,11 +71,13 @@ public class EventProcessor implements Processor {
       json.put("type", fileType);
       json.put("fileContent", parseToPlainText2(destItem, fileType));
       json.put("category", category);
-    } else if ("file".equals(sourceType) && "delete".equals(action)) {
-      json.put("fileStatus", fileStatus);
+      body = "[" + json.toString() + "]";
+    }
+    if ("delete".equals(action)) {
+      body = "{'delete':" + json.toString() + "}";
     }
 
-    exchange.getIn().setBody("[" + json.toString() + "]");
+    exchange.getIn().setBody(body);
 
   }
 
