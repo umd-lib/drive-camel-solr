@@ -123,7 +123,8 @@ public class DrivePollEventProcessor implements Processor {
               for (Change change : changes.getChanges()) {
 
                 File changeItem = change.getFile();
-                log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName());
+
+                log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
 
                 String sourcePath = getSourcePath(changeItem);
                 log.info("Source Path of accessed file:" + sourcePath);
@@ -339,6 +340,7 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("local_path", newFilePath);
     headers.put("source_type", "file");
     headers.put("old_path", oldFilePath);
+    headers.put("modified_time", changedFile.getModifiedTime().toString());
     sendActionExchange(headers, "");
   }
 
@@ -490,7 +492,7 @@ public class DrivePollEventProcessor implements Processor {
       do {
         FileList list = service.files().list()
             .setQ(query)
-            .setFields("nextPageToken,files(id,name,mimeType,parents)")
+            .setFields("nextPageToken,files(id,name,mimeType,parents,createdTime,modifiedTime)")
             .setCorpora("teamDrive")
             .setIncludeTeamDriveItems(true)
             .setSupportsTeamDrives(true)
@@ -545,6 +547,8 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("source_id", file.getId());
     headers.put("source_name", file.getName());
     headers.put("local_path", localPath);
+    headers.put("creation_time", file.getCreatedTime().toString());
+    headers.put("modified_time", file.getModifiedTime().toString());
 
     String paths[] = path.split("/");
     String group = paths[1];
@@ -578,6 +582,7 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("source_id", file.getId());
     headers.put("local_path", localPath);
     headers.put("source_type", "file");
+    headers.put("modified_time", file.getModifiedTime().toString());
 
     sendActionExchange(headers, "");
   }

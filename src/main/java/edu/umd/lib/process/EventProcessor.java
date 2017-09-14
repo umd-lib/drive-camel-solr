@@ -49,6 +49,8 @@ public class EventProcessor implements Processor {
     String action = exchange.getIn().getHeader("action", String.class);
     String group = exchange.getIn().getHeader("group", String.class);
     String category = exchange.getIn().getHeader("category", String.class);
+    String creationTime = exchange.getIn().getHeader("creation_time", String.class);
+    String modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
 
     // e.g., https://drive.google.com/open?id=0B6YxyGZNOvsqdjM2MFJ5Y2JVanc
     String url = "https://drive.google.com/open?id=" + sourceID;
@@ -63,6 +65,8 @@ public class EventProcessor implements Processor {
       json.put("genre", "Google Drive");
       json.put("url", url);
       json.put("group", group);
+      json.put("created", creationTime);
+      json.put("updated", modifiedTime);
       Tika tika = new Tika();
       File destItem = new File(storagePath);
       String fileType = tika.detect(destItem);
@@ -72,12 +76,14 @@ public class EventProcessor implements Processor {
     } else if ("file".equals(sourceType) && "rename_file".equals(action)) {
       json.put("title", sourceName);
       json.put("storagePath", storagePath);
+      json.put("updated", modifiedTime);
     } else if ("file".equals(sourceType) && "update".equals(action)) {
       Tika tika = new Tika();
       File destItem = new File(storagePath);
       String fileType = tika.detect(destItem);
       json.put("type", fileType);
       json.put("fileContent", parseToPlainText2(destItem, fileType));
+      json.put("updated", modifiedTime);
     } else if ("file".equals(sourceType) && "update_paths".equals(action)) {
       json.put("storagePath", storagePath);
     }
