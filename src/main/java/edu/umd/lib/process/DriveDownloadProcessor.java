@@ -1,7 +1,9 @@
 package edu.umd.lib.process;
 
-import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 
 import org.apache.camel.Exchange;
@@ -27,6 +29,7 @@ public class DriveDownloadProcessor extends EventProcessor {
 
     GoogleDriveConnector connector = new GoogleDriveConnector(this.config);
     Drive service = connector.getDriveService();
+    DrivePollEventProcessor processor = new DrivePollEventProcessor(this.config);
 
     // Get file & get its file type
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
@@ -35,6 +38,7 @@ public class DriveDownloadProcessor extends EventProcessor {
         .execute();
     String sourceMimeType = file.getMimeType();
     String downloadMimeType = sourceMimeType;
+    String fileName = file.getName();
     boolean isGoogleDoc = false;
     String googleDocExtension = null;
 
@@ -72,35 +76,37 @@ public class DriveDownloadProcessor extends EventProcessor {
       String fullFilePath = exchange.getIn().getHeader("local_path", String.class);
 
       if (isGoogleDoc) {
-        fullFilePath += googleDocExtension;
-        exchange.getIn().setHeader("local_path", fullFilePath);
+        exchange.getIn().setHeader("source_name", fileName + googleDocExtension);
       }
 
       // Create paths to destination file if they don't exist
-      java.io.File outputFile = new java.io.File(fullFilePath);
-      if (!outputFile.exists()) {
-        java.io.File dir = outputFile.getParentFile();
-        dir.mkdirs();
-        outputFile.createNewFile();
+      Path outputFile = Paths.get(fullFilePath);
+      if (Files.notExists(outputFile)) {
+        Path dir = outputFile.getParent();
+        Files.createDirectories(dir);
+        Files.createFile(outputFile);
       }
 
       // Export file to output stream
-      OutputStream out = new FileOutputStream(outputFile);
+      OutputStream out = Files.newOutputStream(outputFile);
 
       if (isGoogleDoc) {
         service.files().export(sourceID, downloadMimeType).executeMediaAndDownloadTo(out);
       } else {
         service.files().get(sourceID).executeMediaAndDownloadTo(out);
       }
+
       out.flush();
       out.close();
 
+      processor.updateFileAttributeProperties(sourceID, fullFilePath);
+
       // create JSON for SolrUpdater exchange
-      log.info("Creating JSON for indexing Google Drive file with ID:" + sourceID);
+      log.info("Creating JSON for indexing Google Drive file: " + fileName);
       super.process(exchange);
 
     } else {
-      log.info("Cannot download google file of type: " + sourceMimeType);
+      log.info("Cannot download google file " + fileName + " of type: " + sourceMimeType);
     }
 
   }

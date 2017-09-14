@@ -40,13 +40,12 @@ public class EventProcessor implements Processor {
   @Override
   public void process(Exchange exchange) throws Exception {
 
-    log.info(exchange.getIn());
+    log.debug(exchange.getIn());
 
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
     String sourceName = exchange.getIn().getHeader("source_name", String.class);
     String storagePath = exchange.getIn().getHeader("local_path", String.class);
     String sourceType = exchange.getIn().getHeader("source_type", String.class);
-    String fileStatus = exchange.getIn().getHeader("fileStatus", String.class);
     String action = exchange.getIn().getHeader("action", String.class);
     String group = exchange.getIn().getHeader("group", String.class);
     String category = exchange.getIn().getHeader("category", String.class);
@@ -54,10 +53,11 @@ public class EventProcessor implements Processor {
     // e.g., https://drive.google.com/open?id=0B6YxyGZNOvsqdjM2MFJ5Y2JVanc
     String url = "https://drive.google.com/open?id=" + sourceID;
 
+    String body = null;
     JSONObject json = new JSONObject();
     json.put("id", sourceID);
 
-    if (sourceType == "file" && "download".equals(action)) {
+    if ("file".equals(sourceType) && "download".equals(action)) {
       json.put("title", sourceName);
       json.put("storagePath", storagePath);
       json.put("genre", "Google Drive");
@@ -69,11 +69,27 @@ public class EventProcessor implements Processor {
       json.put("type", fileType);
       json.put("fileContent", parseToPlainText2(destItem, fileType));
       json.put("category", category);
-    } else if ("file".equals(sourceType) && "delete".equals(action)) {
-      json.put("fileStatus", fileStatus);
+    } else if ("file".equals(sourceType) && "rename_file".equals(action)) {
+      json.put("title", sourceName);
+      json.put("storagePath", storagePath);
+    } else if ("file".equals(sourceType) && "update".equals(action)) {
+      Tika tika = new Tika();
+      File destItem = new File(storagePath);
+      String fileType = tika.detect(destItem);
+      json.put("type", fileType);
+      json.put("fileContent", parseToPlainText2(destItem, fileType));
+    } else if ("file".equals(sourceType) && "update_paths".equals(action)) {
+      json.put("storagePath", storagePath);
     }
 
-    exchange.getIn().setBody("[" + json.toString() + "]");
+    if ("delete".equals(action)) {
+      body = "{'delete':" + json.toString() + "}";
+    } else {
+      body = "[" + json.toString() + "]";
+    }
+
+    log.debug("Json Mesage \n" + body);
+    exchange.getIn().setBody(body);
 
   }
 

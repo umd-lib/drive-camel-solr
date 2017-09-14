@@ -1,6 +1,9 @@
 package edu.umd.lib.process;
 
-import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.log4j.Logger;
@@ -8,6 +11,12 @@ import org.apache.log4j.Logger;
 public class DriveMakedirProcessor extends EventProcessor {
 
   private static Logger log = Logger.getLogger(DriveMakedirProcessor.class);
+  private Map<String, String> config;
+
+  public DriveMakedirProcessor(Map<String, String> config) {
+
+    this.config = config;
+  }
 
   /**
    * Makes a directory in this project's sync folder. If directory's parent
@@ -16,18 +25,22 @@ public class DriveMakedirProcessor extends EventProcessor {
   @Override
   public void process(Exchange exchange) throws Exception {
 
+    DrivePollEventProcessor processor = new DrivePollEventProcessor(this.config);
+    String fileId = exchange.getIn().getHeader("source_id", String.class);
     String destPath = exchange.getIn().getHeader("local_path", String.class);
 
-    File dir = new File(destPath);
+    Path dir = Paths.get(destPath);
 
-    if (!dir.exists()) {
-      if (dir.mkdirs()) {
+    if (Files.notExists(dir)) {
+      try {
+        Files.createDirectories(dir);
         log.info("Directories created: " + destPath);
-      } else {
+        processor.updateFileAttributeProperties(fileId, destPath);
+      } catch (Exception ex) {
         log.info("Failed to create directories: " + destPath);
+        ex.printStackTrace();
       }
     }
-
   }
 
 }

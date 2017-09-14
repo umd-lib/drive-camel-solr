@@ -4,6 +4,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,143 +47,189 @@ public class DrivePollEventProcessor implements Processor {
 
   private static Logger log = Logger.getLogger(DrivePollEventProcessor.class);
   Map<String, String> config;
+  Drive service;
   ProducerTemplate producer;
   final static String categories[] = { "policies", "reports", "guidelines", "links", "workplans", "minutes" };
 
+  public DrivePollEventProcessor() {
+
+  }
+
   public DrivePollEventProcessor(Map<String, String> config) {
-    this.config = config;
+    try {
+      this.config = config;
+      service = new GoogleDriveConnector(config).getDriveService();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
   @Override
   public void process(Exchange exchange) throws Exception {
 
     producer = exchange.getContext().createProducerTemplate();
-    GoogleDriveConnector gd = new GoogleDriveConnector(this.config);
-    Drive service = gd.getDriveService();
-    poll(service);
+    poll();
   }
 
   /**
    * Connects to Drive and starts long polling Drive events. On an event, sends
    * exchange to ActionListener and updates the poll token.
+   *
+   * @param service
    */
-  public void poll(Drive service) throws Exception {
+  public void poll() {
 
-    java.io.File propFile = new java.io.File(this.config.get("propertiesFile"));
-    if (!propFile.exists()) {
+    Path tokenProperties = Paths.get(this.config.get("tokenProperties"));
+    try {
+      if (Files.notExists(tokenProperties) || Files.size(tokenProperties) == 0) {
 
-      downloadAllFiles(service);
+        downloadAllFiles();
 
-    } else
+      } else
 
-    {
-      String drivePageToken = null;
+      {
+        String drivePageToken = null;
 
-      do {
-        TeamDriveList result = service.teamdrives().list()
-            .setPageToken(drivePageToken)
-            .setPageSize(100)
-            .execute();
+        do {
+          TeamDriveList result = service.teamdrives().list()
+              .setPageToken(drivePageToken)
+              .setPageSize(100)
+              .execute();
 
-        List<TeamDrive> teamDrives = result.getTeamDrives();
+          List<TeamDrive> teamDrives = result.getTeamDrives();
+          log.debug("Number of Team Drives:" + teamDrives.size());
 
-        // Checking for the addition of a new Team Drive. If a new team drive
-        // has been added with a published folder, we download the files inside
-        // the published folder
-        checkForNewTeamDrives(service, teamDrives, propFile);
+          // Checking for the addition of a new Team Drive. If a new team drive
+          // has been added with a published folder, we download the files
+          // inside
+          // the published folder
+          checkForNewTeamDrives(teamDrives, tokenProperties);
 
-        for (TeamDrive td : teamDrives) {
+          for (TeamDrive td : teamDrives) {
 
-          String pageToken = loadDriveChangesToken(td.getId());
+            String pageToken = loadDriveChangesToken(td.getId());
 
-          while (pageToken != null) {
-            ChangeList changes = service.changes().list(pageToken)
-                .setFields("changes,nextPageToken,newStartPageToken")
-                .setIncludeTeamDriveItems(true)
-                .setSupportsTeamDrives(true)
-                .setTeamDriveId(td.getId())
-                .setPageSize(100)
-                .execute();
+            while (pageToken != null) {
 
-            for (Change change : changes.getChanges()) {
+              log.info("Fetching changes for Drive " + td.getName());
+              ChangeList changes = service.changes().list(pageToken)
+                  .setFields("changes,nextPageToken,newStartPageToken")
+                  .setIncludeTeamDriveItems(true)
+                  .setSupportsTeamDrives(true)
+                  .setTeamDriveId(td.getId())
+                  .setPageSize(100)
+                  .execute();
 
-              File changeItem = change.getFile();
-              log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName() + "\t"
-                  + changeItem.getMd5Checksum() + "\t" + changeItem.getOriginalFilename());
+              for (Change change : changes.getChanges()) {
 
-              String sourcePath = getSourcePath(service, changeItem);
-              log.info("Source Path of changed file:" + sourcePath);
+                File changeItem = change.getFile();
+                log.info("Change detected for item: " + changeItem.getId() + "\t" + changeItem.getName());
 
-              // We are interested only in the changes that occur inside the
-              // published folder
-              if ("published".equals(sourcePath.split("//")[2])) {
-                if (change.getRemoved() || changeItem.getTrashed()) {
+                String sourcePath = getSourcePath(changeItem);
+                log.info("Source Path of accessed file:" + sourcePath);
 
-                  if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+                // We are interested only in the changes that occur inside the
+                // published folder
+                if ("published".equals(sourcePath.split("/")[2])) {
 
-                    log.info("Delete request");
-                    sendDeleteRequest(service, change, sourcePath);
+                  // Delete event
+                  if (change.getRemoved() || changeItem.getTrashed()) {
+
+                    if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+
+                      log.info("File Delete request");
+                      sendDeleteRequest(change, sourcePath);
+                    }
+                  } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
+                    if (!"published".equals(changeItem.getName())) {
+
+                      String directoryPath = this.config.get("localStorage") + sourcePath;
+                      String storedFilePath = checkFileAttribute(changeItem.getId());
+
+                      if (storedFilePath == null) {
+                        log.info("Makedir request");
+                        sendMakedirRequest(directoryPath, changeItem.getId());
+                      } else if (storedFilePath != null
+                          && !storedFilePath.equals(directoryPath)) {
+                        log.info("Directory Rename request");
+                        sendDirRenameRequest(storedFilePath, directoryPath, changeItem,
+                            sourcePath);
+                        log.info("Update File Paths request");
+                        updateFilePathChanges(changeItem);
+
+                      }
+                    }
+                  } else {
+
+                    // Either its a new file download, file rename or a file
+                    // update request
+                    String filePath = this.config.get("localStorage") + sourcePath;
+                    Path file = Paths.get(filePath);
+
+                    if (Files.notExists(file)) {
+
+                      // New file download or file rename request
+
+                      String storedFilePath = checkFileAttribute(changeItem.getId());
+
+                      if (storedFilePath != null && !storedFilePath.equals(filePath)) {
+                        log.info("File Rename request");
+                        sendFileRenameRequest(storedFilePath, filePath, changeItem, sourcePath);
+
+                      } else {
+                        log.info("New File download request");
+                        sendDownloadRequest(changeItem, sourcePath);
+                      }
+                    } else if (Files.exists(file) && !changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
+                      log.info("File update request");
+                      sendUpdateContentRequest(changeItem, sourcePath);
+
+                    }
                   }
 
-                } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
-                  String directoryPath = this.config.get("localStorage") + sourcePath;
-                  java.io.File dir = new java.io.File(directoryPath);
-                  if (!dir.exists()) {
-                    log.info("Makedir request");
-                    sendMakedirRequest(service, directoryPath);
-                  }
-                } else {
-
-                  String filePath = this.config.get("localStorage") + sourcePath;
-                  java.io.File file = new java.io.File(filePath);
-                  if (!file.exists()) {
-                    /*
-                     * if (!changeItem.getOriginalFilename().equals(changeItem.
-                     * getName())) { log.info("File rename request"); String
-                     * oldFilePath = filePath.replace(changeItem.getName(),
-                     * changeItem.getOriginalFilename()); new
-                     * java.io.File(oldFilePath).renameTo(new
-                     * java.io.File(filePath)); } else {
-                     */
-                    log.info("New File download request");
-                    sendDownloadRequest(service, changeItem, sourcePath);
-                    // }
-                  } else if (file.exists() && !changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
-                    log.info("Updated file download request");
-                    sendDownloadRequest(service, changeItem, sourcePath);
-
-                  }
                 }
               }
 
+              // save latest page token
+              if (changes.getNewStartPageToken() != null) {
+                pageToken = changes.getNewStartPageToken();
+                log.info("Page token for team drive:" + td.getName() + ":" + pageToken);
+                updateDriveChangesToken(td.getId(), pageToken);
+              }
+
+              pageToken = changes.getNextPageToken();
+
             }
-
-            // save latest page token
-            if (changes.getNewStartPageToken() != null) {
-              pageToken = changes.getNewStartPageToken();
-              log.info("Page token for team drive:" + td.getName() + ":" + pageToken);
-              updateDriveChangesToken(td.getId(), pageToken);
-            }
-
-            pageToken = changes.getNextPageToken();
-
           }
+          drivePageToken = result.getNextPageToken();
+        } while (drivePageToken != null);
 
-        }
-
-        drivePageToken = result.getNextPageToken();
-      } while (drivePageToken != null);
-
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    } catch (Exception e) {
+      e.printStackTrace();
     }
 
   }
 
-  public void checkForNewTeamDrives(Drive service, List<TeamDrive> teamDriveList, java.io.File propertiesFile)
-      throws JSONException {
+  /**
+   * This method is used to check for new Team Drives that have been added after
+   * the first run of this tool. It checks for new team drives, and creates them
+   * on the local server along with all the published files and folders. It also
+   * adds the token for the new drive in the properties file.
+   *
+   * @param service
+   * @param teamDriveList
+   * @param tokenProperties
+   * @throws JSONException
+   */
+
+  public void checkForNewTeamDrives(List<TeamDrive> teamDriveList, Path tokenProperties) {
     try {
-      if (propertiesFile.exists() && !propertiesFile.isDirectory()) {
+      if (Files.exists(tokenProperties) && !Files.isDirectory(tokenProperties)) {
         Properties props = new Properties();
-        FileInputStream in = new FileInputStream(propertiesFile);
+        FileInputStream in = new FileInputStream(tokenProperties.toFile());
         props.load(in);
 
         if (teamDriveList.size() > props.size()) {
@@ -187,10 +237,10 @@ public class DrivePollEventProcessor implements Processor {
             if (!props.containsKey("drivetoken_" + td.getId())) {
               log.info("Team Drive ID:" + td.getId() + "\t Team Drive Name:" + td.getName());
 
-              File publishedFolder = accessPublishedFolder(service, td);
+              File publishedFolder = accessPublishedFolder(td);
 
               if (publishedFolder != null) {
-                accessPublishedFiles(service, publishedFolder, td);
+                accessPublishedFiles(publishedFolder, td);
 
                 StartPageToken response = service.changes().getStartPageToken()
                     .setSupportsTeamDrives(true)
@@ -214,11 +264,18 @@ public class DrivePollEventProcessor implements Processor {
 
   }
 
-  public String getMd5ForFile(java.io.File file) {
+  /**
+   * Returns the MD5 checksum value for a file
+   *
+   * @param file
+   * @return MD5 checksum string
+   */
+
+  public String getMd5ForFile(Path file) {
     String md5Value = null;
     FileInputStream is = null;
     try {
-      is = new FileInputStream(file);
+      is = new FileInputStream(file.toFile());
       md5Value = DigestUtils.md5Hex(IOUtils.toByteArray(is));
     } catch (IOException e) {
       log.info("Hey there is an error: " + e);
@@ -232,15 +289,15 @@ public class DrivePollEventProcessor implements Processor {
    * Sends a new message exchange to ActionListener requesting to make a
    * directory on the local system.
    *
-   * @param service
-   * @param file
+   * @param directoryPath
    * @throws IOException
    */
-  private void sendMakedirRequest(Drive service, String directoryPath) throws IOException {
+  private void sendMakedirRequest(String directoryPath, String fileId) {
 
     HashMap<String, String> headers = new HashMap<String, String>();
 
     headers.put("action", "make_directory");
+    headers.put("source_id", fileId);
     headers.put("local_path", directoryPath);
 
     sendActionExchange(headers, "");
@@ -248,24 +305,78 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   /**
-   * Sends a new message exchange to ActionListener requesting to delete a file
-   * or folder from the local system, along with its children.
+   * Sends a new message exchange to ActionListener requesting to rename a file
+   * on the local system.
    *
    * @param service
-   * @param file
+   * @param oldFile
+   * @param newFile
+   * @param changedFile
+   * @param path
    * @throws IOException
    */
-  private void sendDeleteRequest(Drive service, Change change, String sourcePath) throws IOException {
+  public void sendFileRenameRequest(String oldFilePath, String newFilePath, File changedFile, String path) {
+
+    String sourceMimeType = changedFile.getMimeType();
+    String fileName = changedFile.getName();
+
+    if (sourceMimeType.equals("application/vnd.google-apps.document")) {
+      fileName += ".docx";
+    } else if (sourceMimeType.equals("application/vnd.google-apps.spreadsheet")) {
+      fileName += ".xlsx";
+    } else if (sourceMimeType.equals("application/vnd.google-apps.drawing")) {
+      fileName += ".jpg";
+    } else if (sourceMimeType.equals("application/vnd.google-apps.presentation")) {
+      fileName += ".pptx";
+    } else if (sourceMimeType.equals("application/vnd.google-apps.script")) {
+      fileName += ".json";
+    }
+
+    HashMap<String, String> headers = new HashMap<String, String>();
+    headers.put("action", "rename_file");
+    headers.put("source_id", changedFile.getId());
+    headers.put("source_name", fileName);
+    headers.put("local_path", newFilePath);
+    headers.put("source_type", "file");
+    headers.put("old_path", oldFilePath);
+    sendActionExchange(headers, "");
+  }
+
+  /**
+   * Sends a new message exchange to ActionListener requesting to rename a
+   * directory on the local system.
+   *
+   * @param oldFilePath
+   * @param newFilePath
+   * @param changedFile
+   * @param path
+   */
+
+  public void sendDirRenameRequest(String oldFilePath, String newFilePath, File changedFile, String path) {
+
+    HashMap<String, String> headers = new HashMap<String, String>();
+    headers.put("action", "rename_dir");
+    headers.put("source_id", changedFile.getId());
+    headers.put("local_path", newFilePath);
+    headers.put("old_path", oldFilePath);
+    sendActionExchange(headers, "");
+  }
+
+  /**
+   * Sends a new message exchange to ActionListener requesting to delete a file
+   * or folder
+   *
+   * @param service
+   * @param change
+   * @param sourcePath
+   * @throws IOException
+   */
+  private void sendDeleteRequest(Change change, String sourcePath) {
 
     HashMap<String, String> headers = new HashMap<String, String>();
 
     headers.put("action", "delete");
     headers.put("source_id", change.getFileId());
-    File deletedFile = change.getFile();
-
-    // file source path of the deleted file
-    headers.put("url", getSourcePath(service, deletedFile));
-    headers.put("source_name", deletedFile.getName());
     headers.put("local_path", this.config.get("localStorage") + sourcePath);
     headers.put("source_type", "file");
     sendActionExchange(headers, "");
@@ -274,56 +385,73 @@ public class DrivePollEventProcessor implements Processor {
 
   /**
    * Sends requests to make all directories and download all files associated
-   * with a Google Drive account.
+   * with the Team Drive.
    *
    * @param service
    * @throws IOException
    * @throws JSONException
    */
-  private void downloadAllFiles(Drive service) throws IOException, JSONException {
+  private void downloadAllFiles() {
 
     log.info("First time connecting to Google Drive Account");
     log.info("Sending requests to download all published files of this account...");
 
-    String pageToken = null;
-    java.io.File propertiesFile = new java.io.File(this.config.get("propertiesFile"));
-    propertiesFile.createNewFile();
+    try {
+      String pageToken = null;
+      Path tokenProperties = Paths.get(this.config.get("tokenProperties"));
+      Path fileAttributeProperties = Paths.get(this.config.get("fileAttributeProperties"));
 
-    do {
-
-      TeamDriveList result = service.teamdrives().list()
-          .setPageToken(pageToken)
-          .execute();
-
-      List<TeamDrive> teamDrives = result.getTeamDrives();
-      log.info("Total no. of Team Drives:" + teamDrives.size());
-
-      for (TeamDrive teamDrive : teamDrives) {
-        log.info("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
-
-        File publishedFolder = accessPublishedFolder(service, teamDrive);
-
-        if (publishedFolder != null) {
-
-          accessPublishedFiles(service, publishedFolder, teamDrive);
-        }
-
-        StartPageToken response = service.changes().getStartPageToken()
-            .setSupportsTeamDrives(true)
-            .setTeamDriveId(teamDrive.getId())
-            .execute();
-
-        updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
+      if (Files.notExists(tokenProperties)) {
+        Files.createFile(tokenProperties);
       }
 
-      pageToken = result.getNextPageToken();
-    } while (pageToken != null);
+      Files.createFile(fileAttributeProperties);
+
+      do {
+
+        TeamDriveList result = service.teamdrives().list()
+            .setPageToken(pageToken)
+            .execute();
+
+        List<TeamDrive> teamDrives = result.getTeamDrives();
+        log.info("Number of Team Drives:" + teamDrives.size());
+
+        for (TeamDrive teamDrive : teamDrives) {
+          log.info("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
+
+          File publishedFolder = accessPublishedFolder(teamDrive);
+
+          if (publishedFolder != null) {
+
+            accessPublishedFiles(publishedFolder, teamDrive);
+          }
+
+          StartPageToken response = service.changes().getStartPageToken()
+              .setSupportsTeamDrives(true)
+              .setTeamDriveId(teamDrive.getId())
+              .execute();
+
+          updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
+        }
+
+        pageToken = result.getNextPageToken();
+      } while (pageToken != null);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
-  public File accessPublishedFolder(Drive service, TeamDrive td) {
+  /**
+   * Returns the published folder for a Team Drive
+   *
+   * @param service
+   * @param teamDrive
+   * @return the published folder for a team drive, if it exists
+   */
+  public File accessPublishedFolder(TeamDrive teamDrive) {
     try {
       FileList list = service.files().list()
-          .setTeamDriveId(td.getId())
+          .setTeamDriveId(teamDrive.getId())
           .setSupportsTeamDrives(true)
           .setCorpora("teamDrive")
           .setFields("files(id,name,parents)")
@@ -334,7 +462,7 @@ public class DrivePollEventProcessor implements Processor {
       List<File> fileList = list.getFiles();
 
       if (fileList.size() > 0) {
-        log.info("Published folder id:" + fileList.get(0).getId());
+        log.debug("Published folder id:" + fileList.get(0).getId());
         return fileList.get(0);
       }
 
@@ -344,7 +472,16 @@ public class DrivePollEventProcessor implements Processor {
     return null;
   }
 
-  public void accessPublishedFiles(Drive service, File file, TeamDrive td) throws JSONException {
+  /**
+   * This method lists all the files inside the published folder of a Team Drive
+   * and sends a download request for these files
+   *
+   * @param service
+   * @param file
+   * @param tdteamDrive
+   * @throws JSONException
+   */
+  public void accessPublishedFiles(File file, TeamDrive teamDrive) {
 
     try {
 
@@ -357,7 +494,7 @@ public class DrivePollEventProcessor implements Processor {
             .setCorpora("teamDrive")
             .setIncludeTeamDriveItems(true)
             .setSupportsTeamDrives(true)
-            .setTeamDriveId(td.getId())
+            .setTeamDriveId(teamDrive.getId())
             .setPageToken(pageToken)
             .execute();
 
@@ -367,15 +504,14 @@ public class DrivePollEventProcessor implements Processor {
 
         for (File pubFile : fileList) {
 
-          log.info("File Name:" + pubFile.getName());
-          log.info("Mime type:" + pubFile.getMimeType());
-          String path = getSourcePath(service, pubFile);
+          log.debug("File Name:" + pubFile.getName());
+          log.debug("Mime type:" + pubFile.getMimeType());
+          String path = getSourcePath(pubFile);
           if ("application/vnd.google-apps.folder".equals(pubFile.getMimeType())) {
-
-            sendMakedirRequest(service, this.config.get("localStorage") + path);
-            accessPublishedFiles(service, pubFile, td);
+            sendMakedirRequest(this.config.get("localStorage") + path, pubFile.getId());
+            accessPublishedFiles(pubFile, teamDrive);
           } else {
-            sendDownloadRequest(service, pubFile, path);
+            sendDownloadRequest(pubFile, path);
           }
 
         }
@@ -394,10 +530,11 @@ public class DrivePollEventProcessor implements Processor {
    *
    * @param service
    * @param file
+   * @param path
    * @throws IOException
    * @throws JSONException
    */
-  private void sendDownloadRequest(Drive service, File file, String path) throws IOException, JSONException {
+  public void sendDownloadRequest(File file, String path) {
 
     HashMap<String, String> headers = new HashMap<String, String>();
 
@@ -408,9 +545,8 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("source_id", file.getId());
     headers.put("source_name", file.getName());
     headers.put("local_path", localPath);
-    headers.put("url", path);
 
-    String paths[] = path.split("//");
+    String paths[] = path.split("/");
     String group = paths[1];
 
     headers.put("group", group);
@@ -425,6 +561,25 @@ public class DrivePollEventProcessor implements Processor {
 
     sendActionExchange(headers, "");
 
+  }
+
+  /**
+   * Send a new message exchange to ActionListener requesting to update an
+   * existing file
+   *
+   * @param service
+   * @param file
+   */
+  public void sendUpdateContentRequest(File file, String path) {
+
+    String localPath = this.config.get("localStorage") + path;
+    HashMap<String, String> headers = new HashMap<String, String>();
+    headers.put("action", "update");
+    headers.put("source_id", file.getId());
+    headers.put("local_path", localPath);
+    headers.put("source_type", "file");
+
+    sendActionExchange(headers, "");
   }
 
   /**
@@ -448,15 +603,18 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   /****
-   * Create the properties file and load the poll token if properties file
-   * exists load the poll token from the file.
+   * Loads the poll token from the properties file, if the properties file
+   * exists
+   *
+   * @param teamDriveId
+   * @return the poll token for the Team Drive
    */
   public String loadDriveChangesToken(String teamDriveId) {
     String token = null;
     try {
-      String drivePropFile = this.config.get("propertiesFile");
-      java.io.File f = new java.io.File(drivePropFile);
-      if (f.exists() && !f.isDirectory()) {
+      String drivePropFile = this.config.get("tokenProperties");
+      Path f = Paths.get(drivePropFile);
+      if (Files.exists(f) && !Files.isDirectory(f)) {
         Properties defaultProps = new Properties();
         FileInputStream in = new FileInputStream(drivePropFile);
         defaultProps.load(in);
@@ -471,9 +629,15 @@ public class DrivePollEventProcessor implements Processor {
     return token;
   }
 
+  /**
+   * This method updates the token for the Team Drive in the properties file
+   *
+   * @param teamDriveId
+   * @param driveToken
+   */
   public void updateDriveChangesToken(String teamDriveId, String driveToken) {
     try {
-      String propFilePath = this.config.get("propertiesFile");
+      String propFilePath = this.config.get("tokenProperties");
 
       FileInputStream in = new FileInputStream(propFilePath);
       Properties props = new Properties();
@@ -491,14 +655,68 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   /**
+   * Checks the fileAttribute properties file for existence of a file and
+   * returns the path if fileId exists
+   *
+   * @param fileId
+   * @return boolean
+   */
+  public String checkFileAttribute(String fileId) {
+    try {
+      String attrPropFile = this.config.get("fileAttributeProperties");
+      Path f = Paths.get(attrPropFile);
+      if (Files.exists(f) && !Files.isDirectory(f)) {
+        Properties defaultProps = new Properties();
+        FileInputStream in = new FileInputStream(attrPropFile);
+        defaultProps.load(in);
+        String path = defaultProps.getProperty(fileId);
+        in.close();
+        if (path != null) {
+          return path;
+        }
+      }
+    } catch (FileNotFoundException e) {
+      log.error("FileAttribute Properties file not found" + e.getMessage());
+    } catch (IOException e) {
+      log.error("FileAttribute Properties file cannot be opened" + e.getMessage());
+    }
+    return null;
+  }
+
+  /**
+   * Updates this fileattribute properties file with the File id and spurce path
+   * of each file
+   *
+   * @param teamDriveId
+   * @param driveToken
+   */
+  public void updateFileAttributeProperties(String fileId, String path) {
+    try {
+      String propFilePath = this.config.get("fileAttributeProperties");
+      FileInputStream in = new FileInputStream(propFilePath);
+      Properties props = new Properties();
+      props.load(in);
+      in.close();
+      FileOutputStream out = new FileOutputStream(propFilePath);
+      props.setProperty(fileId, path);
+      props.store(out, "File updated by the program - Do not delete");
+      out.close();
+    } catch (FileNotFoundException e) {
+      log.error("FileAttribute properties file not found" + e.getMessage());
+    } catch (IOException e) {
+      log.error("FileAttribute properties file cannot be opened" + e.getMessage());
+    }
+  }
+
+  /**
    * Gets the absolute path of a file or folder as it stands in Drive storage.
    *
    * @param service
    * @param item
-   * @return
+   * @return the source path (as it stands in Google Drive) for a file
    * @throws IOException
    */
-  private String getSourcePath(Drive service, File item) throws IOException {
+  public String getSourcePath(File item) {
 
     String itemName = item.getName();
     String parentID = item.getParents().get(0);
@@ -506,28 +724,130 @@ public class DrivePollEventProcessor implements Processor {
     StringBuilder fullPathBuilder = new StringBuilder();
     path.push(itemName);
 
-    while (true) {
+    try {
+      while (true) {
 
-      File parent = service.files().get(parentID)
-          .setSupportsTeamDrives(true)
-          .setFields("id,name,parents")
-          .execute();
+        File parent = service.files().get(parentID)
+            .setSupportsTeamDrives(true)
+            .setFields("id,name,parents")
+            .execute();
 
-      if (parent.getParents() == null) {
-        String teamDriveName = service.teamdrives().get(parent.getId()).execute().getName();
-        path.push(teamDriveName);
-        break;
-      } else {
-        path.push(parent.getName());
-        parentID = parent.getParents().get(0);
+        if (parent.getParents() == null) {
+          String teamDriveName = service.teamdrives().get(parent.getId()).execute().getName();
+          path.push(teamDriveName);
+          break;
+        } else {
+          path.push(parent.getName());
+          parentID = parent.getParents().get(0);
+        }
       }
+    } catch (IOException ex) {
+      ex.printStackTrace();
     }
 
     while (!path.isEmpty()) {
-      fullPathBuilder.append("//").append(path.pop());
+      fullPathBuilder.append("/").append(path.pop());
+    }
+
+    String sourceMimeType = item.getMimeType();
+
+    if (sourceMimeType.equals("application/vnd.google-apps.document")) {
+      fullPathBuilder.append(".docx");
+    } else if (sourceMimeType.equals("application/vnd.google-apps.spreadsheet")) {
+      fullPathBuilder.append(".xlsx");
+    } else if (sourceMimeType.equals("application/vnd.google-apps.drawing")) {
+      fullPathBuilder.append(".jpg");
+    } else if (sourceMimeType.equals("application/vnd.google-apps.presentation")) {
+      fullPathBuilder.append(".pptx");
+    } else if (sourceMimeType.equals("application/vnd.google-apps.script")) {
+      fullPathBuilder.append(".json");
     }
 
     return fullPathBuilder.toString();
+  }
+
+  /**
+   *
+   * @param fileId
+   * @return the list of files within a directory
+   * @throws IOException
+   */
+
+  public List<File> fetchFileList(String fileId) {
+
+    log.debug("Inside fetchFileList");
+    List<File> fullFilesList = new ArrayList<File>();
+    String teamDriveId = null;
+
+    try {
+      teamDriveId = service.files().get(fileId)
+          .setSupportsTeamDrives(true)
+          .execute().getTeamDriveId();
+
+      log.debug("Team DriveId:" + teamDriveId);
+      String query = "'" + fileId + "' in parents and trashed=false";
+      String pageToken = null;
+      do {
+        FileList list = service.files().list()
+            .setQ(query)
+            .setFields("nextPageToken,files(id,name,mimeType,parents)")
+            .setCorpora("teamDrive")
+            .setIncludeTeamDriveItems(true)
+            .setSupportsTeamDrives(true)
+            .setTeamDriveId(teamDriveId)
+            .setPageToken(pageToken)
+            .setPageSize(50)
+            .execute();
+
+        List<File> fileList = list.getFiles();
+
+        fullFilesList.addAll(fileList);
+
+        for (File f : fileList) {
+          if ("application/vnd.google-apps.folder".equals(f.getMimeType())) {
+            fullFilesList.addAll(fetchFileList(f.getId()));
+          }
+        }
+
+        pageToken = list.getNextPageToken();
+      } while (pageToken != null);
+
+    }
+
+    catch (IOException e) {
+      e.printStackTrace();
+    }
+
+    return fullFilesList;
+  }
+
+  public void updateFilePathChanges(File changeItem) {
+
+    HashMap<String, String> headers = new HashMap<String, String>();
+    List<File> files = fetchFileList(changeItem.getId());
+
+    for (File file : files) {
+      String originalPath = checkFileAttribute(file.getId());
+
+      if (originalPath != null) {
+        String url = getSourcePath(file);
+        String fullPath = this.config.get("localStorage") + url;
+
+        updateFileAttributeProperties(file.getId(), fullPath);
+
+        if (!"application/vnd.google-apps.folder".equals(file.getMimeType())) {
+
+          headers.put("action", "update_paths");
+          headers.put("source_id", file.getId());
+          headers.put("local_path", fullPath);
+          headers.put("source_type", "file");
+
+          sendActionExchange(headers, "");
+        }
+      }
+
+    }
+
   }
 
 }
