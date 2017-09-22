@@ -232,6 +232,7 @@ public class DrivePollEventProcessor implements Processor {
         Properties props = new Properties();
         FileInputStream in = new FileInputStream(tokenProperties.toFile());
         props.load(in);
+        in.close();
 
         if (teamDriveList.size() > props.size()) {
           for (TeamDrive td : teamDriveList) {
@@ -402,12 +403,19 @@ public class DrivePollEventProcessor implements Processor {
       String pageToken = null;
       Path tokenProperties = Paths.get(this.config.get("tokenProperties"));
       Path fileAttributeProperties = Paths.get(this.config.get("fileAttributeProperties"));
+      Path fileAcronymProperties = Paths.get(this.config.get("fileAcronymProperties"));
 
       if (Files.notExists(tokenProperties)) {
         Files.createFile(tokenProperties);
       }
 
-      Files.createFile(fileAttributeProperties);
+      if (Files.notExists(fileAttributeProperties)) {
+        Files.createFile(fileAttributeProperties);
+      }
+
+      if (Files.notExists(fileAcronymProperties)) {
+        Files.createFile(fileAcronymProperties);
+      }
 
       do {
 
@@ -541,6 +549,8 @@ public class DrivePollEventProcessor implements Processor {
     HashMap<String, String> headers = new HashMap<String, String>();
 
     String localPath = this.config.get("localStorage") + path;
+    Path acronymPropertiesFile = Paths.get(this.config.get("fileAcronymProperties"));
+    Properties props = new Properties();
 
     headers.put("action", "download");
     headers.put("source_type", "file");
@@ -551,9 +561,9 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("modified_time", file.getModifiedTime().toString());
 
     String paths[] = path.split("/");
-    String group = paths[1];
+    String teamDrive = paths[1];
 
-    headers.put("group", group);
+    headers.put("teamDrive", teamDrive);
 
     if (paths.length > 3) {
       for (String category : categories) {
@@ -561,6 +571,27 @@ public class DrivePollEventProcessor implements Processor {
           headers.put("category", category);
         }
       }
+    }
+
+    try {
+      if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
+
+        FileInputStream in = new FileInputStream(acronymPropertiesFile.toFile());
+        props.load(in);
+
+        String acronym = (String) props.get(teamDrive.replaceAll(" ", "_"));
+        if (acronym != null) {
+          headers.put("group", acronym);
+        } else {
+          log.info("Could not set the group name. Ensure that it exists in the properties file.");
+        }
+
+        in.close();
+      }
+
+    } catch (IOException e) {
+
+      e.printStackTrace();
     }
 
     sendActionExchange(headers, "");

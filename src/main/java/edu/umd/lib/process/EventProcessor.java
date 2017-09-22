@@ -48,6 +48,7 @@ public class EventProcessor implements Processor {
     String sourceType = exchange.getIn().getHeader("source_type", String.class);
     String action = exchange.getIn().getHeader("action", String.class);
     String group = exchange.getIn().getHeader("group", String.class);
+    String teamDrive = exchange.getIn().getHeader("teamDrive", String.class);
     String category = exchange.getIn().getHeader("category", String.class);
     String creationTime = exchange.getIn().getHeader("creation_time", String.class);
     String modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
@@ -65,6 +66,7 @@ public class EventProcessor implements Processor {
       json.put("genre", "Google Drive");
       json.put("url", url);
       json.put("group", group);
+      json.put("teamDrive", teamDrive);
       json.put("created", creationTime);
       json.put("updated", modifiedTime);
       Tika tika = new Tika();
