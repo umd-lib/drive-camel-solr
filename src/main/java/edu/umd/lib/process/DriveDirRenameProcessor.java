@@ -32,7 +32,7 @@ public class DriveDirRenameProcessor extends EventProcessor {
       Path newPath = Paths.get(exchange.getIn().getHeader("local_path", String.class));
 
       Files.move(oldPath, newPath);
-      processor.updateFileAttributeProperties(fileId, newPath.toString());
+      processor.updateFileAttributeProperties(fileId, newPath.toString(), null);
 
     } catch (IOException e) {
       log.info("File Not found. Check the file paths.");

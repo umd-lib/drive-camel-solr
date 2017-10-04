@@ -39,7 +39,7 @@ public class DriveMakedirProcessor extends EventProcessor {
       try {
         Files.createDirectories(dir);
         log.info("Directories created: " + destPath);
-        processor.updateFileAttributeProperties(fileId, destPath);
+        processor.updateFileAttributeProperties(fileId, destPath, null);
       } catch (Exception ex) {
         log.info("Failed to create directories: " + destPath);
         ex.printStackTrace();

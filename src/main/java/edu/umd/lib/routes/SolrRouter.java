@@ -128,7 +128,7 @@ public class SolrRouter extends RouteBuilder {
     from("direct:delete.filesys")
         .routeId("FileDeleter")
         .log("Deleting file")
-        .process(new DriveDeleteProcessor())
+        .process(new DriveDeleteProcessor(config))
         .to("direct:delete.solr");
 
     /**
@@ -166,7 +166,7 @@ public class SolrRouter extends RouteBuilder {
     from("direct:update_paths")
         .routeId("FilePathsUpdater")
         .log("Updating the paths in the properties file and Solr for all the files within a renamed directory")
-        .process(new DrivePathUpdateProcessor())
+        .process(new DrivePathUpdateProcessor(config))
         .to("direct:update.solr");
 
     /**
