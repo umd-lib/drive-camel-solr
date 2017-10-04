@@ -4,6 +4,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -111,7 +112,7 @@ public class DrivePollEventProcessor implements Processor {
 
             while (pageToken != null) {
 
-              log.info("Fetching changes for Drive " + td.getName());
+              log.info("Checking changes for Drive " + td.getName());
               ChangeList changes = service.changes().list(pageToken)
                   .setFields("changes,nextPageToken,newStartPageToken")
                   .setIncludeTeamDriveItems(true)
@@ -164,29 +165,68 @@ public class DrivePollEventProcessor implements Processor {
 
                     // Either its a new file download, file rename or a file
                     // update request
-                    String filePath = this.config.get("localStorage") + sourcePath;
-                    Path file = Paths.get(filePath);
 
-                    if (Files.notExists(file)) {
+                    String storedFilePath = checkFileAttribute(changeItem.getId());
 
-                      // New file download or file rename request
+                    if (storedFilePath == null) {
+                      // New file download request
+                      log.info("New File download request");
+                      sendDownloadRequest(changeItem, sourcePath);
+                    } else {
 
-                      String storedFilePath = checkFileAttribute(changeItem.getId());
+                      Path file = Paths.get(storedFilePath);
+                      List<String> googleDoc = checkForGoogleDoc(changeItem.getMimeType());
+                      String storedFileName = storedFilePath.substring(storedFilePath.lastIndexOf("/") + 1,
+                          storedFilePath.length());
 
-                      if (storedFilePath != null && !storedFilePath.equals(filePath)) {
-                        log.info("File Rename request");
-                        sendFileRenameRequest(storedFilePath, filePath, changeItem, sourcePath);
+                      if (googleDoc.size() == 0) {
+                        // Not a Google doc
+
+                        // Checking for content update
+                        if (!changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
+                          log.info("Non Google Doc file update request");
+                          sendUpdateContentRequest(changeItem, storedFilePath);
+                        }
+
+                        // Checking for file rename
+                        if (!storedFileName.equals(changeItem.getName())) {
+                          log.info("Non Google Doc File Rename request");
+                          sendFileRenameRequest(storedFilePath, changeItem);
+                        }
 
                       } else {
-                        log.info("New File download request");
-                        sendDownloadRequest(changeItem, sourcePath);
+                        // Google doc
+                        String ext = googleDoc.get(0);
+                        String mimeType = googleDoc.get(1);
+
+                        String tempFilePath = changeItem.getName() + ext;
+                        Path outputFile = Paths.get(tempFilePath);
+                        Files.createFile(outputFile);
+                        OutputStream out = Files.newOutputStream(outputFile);
+
+                        service.files().export(changeItem.getId(), mimeType).executeMediaAndDownloadTo(out);
+
+                        log.info("Checksum of Output file:" + getMd5ForFile(outputFile));
+                        log.info("Checksum of stored file:" + getMd5ForFile(file));
+
+                        // Checking for content update
+                        if (!getMd5ForFile(outputFile).equals(getMd5ForFile(file))) {
+                          log.info("Google Doc file update request");
+                          sendUpdateContentRequest(changeItem, storedFilePath);
+                        }
+                        out.flush();
+                        out.close();
+                        Files.delete(outputFile);
+
+                        // Checking for file rename
+                        if (!storedFileName.equals(changeItem.getName() + ext)) {
+                          log.info("Google Doc File Rename request");
+                          sendFileRenameRequest(storedFilePath, changeItem);
+                        }
                       }
-                    } else if (Files.exists(file) && !changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
-                      log.info("File update request");
-                      sendUpdateContentRequest(changeItem, sourcePath);
 
                     }
-                  }
+                  } // End of file download,rename or update
 
                 }
               }
@@ -194,7 +234,7 @@ public class DrivePollEventProcessor implements Processor {
               // save latest page token
               if (changes.getNewStartPageToken() != null) {
                 pageToken = changes.getNewStartPageToken();
-                log.info("Page token for team drive:" + td.getName() + ":" + pageToken);
+                log.debug("Page token for team drive:" + td.getName() + ":" + pageToken);
                 updateDriveChangesToken(td.getId(), pageToken);
               }
 
@@ -206,12 +246,42 @@ public class DrivePollEventProcessor implements Processor {
         } while (drivePageToken != null);
 
       }
-    } catch (IOException e) {
+    } catch (
+
+    IOException e) {
       e.printStackTrace();
     } catch (Exception e) {
       e.printStackTrace();
     }
 
+  }
+
+  public List<String> checkForGoogleDoc(String mimeType) {
+    List<String> googleDocMetaData = new ArrayList<String>();
+
+    if (mimeType.equals("application/vnd.google-apps.document")) {
+      // Download google documents as MS Word files
+      googleDocMetaData.add(".docx");
+      googleDocMetaData.add("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    } else if (mimeType.equals("application/vnd.google-apps.spreadsheet")) {
+      // Download google spreadsheets as MS Excel files
+      googleDocMetaData.add(".xlsx");
+      googleDocMetaData.add("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    } else if (mimeType.equals("application/vnd.google-apps.drawing")) {
+      // Download google drawings as jpegs
+      googleDocMetaData.add(".jpg");
+      googleDocMetaData.add("image/jpeg");
+    } else if (mimeType.equals("application/vnd.google-apps.presentation")) {
+      // Download google slides as MS powerpoint
+      googleDocMetaData.add(".pptx");
+      googleDocMetaData.add("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    } else if (mimeType.equals("application/vnd.google-apps.script")) {
+      // Download google apps scripts as JSON
+      googleDocMetaData.add(".json");
+      googleDocMetaData.add("application/vnd.google-apps.script+json");
+    }
+
+    return googleDocMetaData;
   }
 
   /**
@@ -317,7 +387,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param path
    * @throws IOException
    */
-  public void sendFileRenameRequest(String oldFilePath, String newFilePath, File changedFile, String path) {
+  public void sendFileRenameRequest(String oldFilePath, File changedFile) {
 
     String sourceMimeType = changedFile.getMimeType();
     String fileName = changedFile.getName();
@@ -334,11 +404,14 @@ public class DrivePollEventProcessor implements Processor {
       fileName += ".json";
     }
 
+    String updatedFilePath = oldFilePath
+        .replace(oldFilePath.substring(oldFilePath.lastIndexOf("/") + 1, oldFilePath.length()), fileName);
+
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "rename_file");
     headers.put("source_id", changedFile.getId());
     headers.put("source_name", fileName);
-    headers.put("local_path", newFilePath);
+    headers.put("local_path", updatedFilePath);
     headers.put("source_type", "file");
     headers.put("old_path", oldFilePath);
     headers.put("modified_time", changedFile.getModifiedTime().toString());
@@ -403,7 +476,7 @@ public class DrivePollEventProcessor implements Processor {
       String pageToken = null;
       Path tokenProperties = Paths.get(this.config.get("tokenProperties"));
       Path fileAttributeProperties = Paths.get(this.config.get("fileAttributeProperties"));
-      Path fileAcronymProperties = Paths.get(this.config.get("fileAcronymProperties"));
+      Path driveAcronymProperties = Paths.get(this.config.get("driveAcronymProperties"));
 
       if (Files.notExists(tokenProperties)) {
         Files.createFile(tokenProperties);
@@ -413,8 +486,10 @@ public class DrivePollEventProcessor implements Processor {
         Files.createFile(fileAttributeProperties);
       }
 
-      if (Files.notExists(fileAcronymProperties)) {
-        Files.createFile(fileAcronymProperties);
+      if (Files.notExists(driveAcronymProperties)) {
+        Files.createFile(driveAcronymProperties);
+        log.info("Application paused for 60 seconds. Please populate the newly created drive acronym properties file.");
+        Thread.sleep(60000);
       }
 
       do {
@@ -447,6 +522,8 @@ public class DrivePollEventProcessor implements Processor {
         pageToken = result.getNextPageToken();
       } while (pageToken != null);
     } catch (IOException e) {
+      e.printStackTrace();
+    } catch (InterruptedException e) {
       e.printStackTrace();
     }
   }
@@ -549,7 +626,7 @@ public class DrivePollEventProcessor implements Processor {
     HashMap<String, String> headers = new HashMap<String, String>();
 
     String localPath = this.config.get("localStorage") + path;
-    Path acronymPropertiesFile = Paths.get(this.config.get("fileAcronymProperties"));
+    Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
     Properties props = new Properties();
 
     headers.put("action", "download");
@@ -605,9 +682,8 @@ public class DrivePollEventProcessor implements Processor {
    * @param service
    * @param file
    */
-  public void sendUpdateContentRequest(File file, String path) {
+  public void sendUpdateContentRequest(File file, String localPath) {
 
-    String localPath = this.config.get("localStorage") + path;
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "update");
     headers.put("source_id", file.getId());

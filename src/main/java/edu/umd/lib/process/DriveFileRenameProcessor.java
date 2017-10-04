@@ -28,10 +28,10 @@ public class DriveFileRenameProcessor extends EventProcessor {
 
       String fileId = exchange.getIn().getHeader("source_id", String.class);
       Path oldPath = Paths.get(exchange.getIn().getHeader("old_path", String.class));
-      Path newPath = Paths.get(exchange.getIn().getHeader("local_path", String.class));
+      Path updatedPath = Paths.get(exchange.getIn().getHeader("local_path", String.class));
 
-      Files.move(oldPath, newPath);
-      processor.updateFileAttributeProperties(fileId, newPath.toString());
+      Files.move(oldPath, updatedPath);
+      processor.updateFileAttributeProperties(fileId, updatedPath.toString());
 
       super.process(exchange);
 

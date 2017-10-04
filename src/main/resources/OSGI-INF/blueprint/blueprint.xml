@@ -30,7 +30,7 @@
                 <cm:property name="drive.max_cache_entries" value="" />
                 <cm:property name="drive.token_properties" value="/Users/audani/Desktop/drive integration/googledrivetoken.properties" />
                 <cm:property name="drive.file_attribute_properties" value="/Users/audani/Desktop/drive integration/fileattributes.properties" />
-                <cm:property name="drive.file_acronym_properties" value="/Users/audani/Desktop/drive integration/fileacronym.properties" />
+                <cm:property name="drive.drive_acronym_properties" value="/Users/audani/Desktop/drive integration/driveacronym.properties" />
                 <cm:property name="drive.poll_interval" value="60s" />
                 <cm:property name="drive.local_storage" value="/Users/audani/Desktop/drive integration" />
                 
@@ -46,7 +46,7 @@
             <property name="maxCacheTries" value="${drive.max_cache_entries}" />
             <property name="tokenProperties" value="${drive.token_properties}" />
          	<property name="fileAttributeProperties" value="${drive.file_attribute_properties}" />
-         	<property name="fileAcronymProperties" value="${drive.file_acronym_properties}" />
+         	<property name="driveAcronymProperties" value="${drive.drive_acronym_properties}" />
             <property name="pollInterval" value="${drive.poll_interval}" />
             <property name="localStorage" value="${drive.local_storage}" />
             <property name="solrBaseUrl" value="${solr.baseUrl}" />

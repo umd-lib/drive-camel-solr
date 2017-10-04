@@ -33,7 +33,7 @@ public class SolrRouter extends RouteBuilder {
   private String pollInterval;
   private String solrBaseUrl;
   private String localStorage;
-  private String fileAcronymProperties;
+  private String driveAcronymProperties;
 
   Map<String, String> config = new HashMap<String, String>();
 
@@ -56,7 +56,7 @@ public class SolrRouter extends RouteBuilder {
     config.put("maxCacheTries", maxCacheTries);
     config.put("tokenProperties", tokenProperties);
     config.put("fileAttributeProperties", fileAttributeProperties);
-    config.put("fileAcronymProperties", fileAcronymProperties);
+    config.put("driveAcronymProperties", driveAcronymProperties);
     config.put("solrBaseUrl", solrBaseUrl);
     config.put("localStorage", localStorage);
 
@@ -303,17 +303,17 @@ public class SolrRouter extends RouteBuilder {
    *
    * @return the acronym properties file
    */
-  public String getFileAcronymProperties() {
-    return fileAcronymProperties;
+  public String getDriveAcronymProperties() {
+    return driveAcronymProperties;
   }
 
   /**
    *
-   * @param fileAcronymProperties
-   *          the acronym properties file to set
+   * @param driveAcronymProperties
+   *          the drive acronym properties file to set
    */
-  public void setFileAcronymProperties(String fileAcronymProperties) {
-    this.fileAcronymProperties = fileAcronymProperties;
+  public void setDriveAcronymProperties(String driveAcronymProperties) {
+    this.driveAcronymProperties = driveAcronymProperties;
   }
 
   /**
