@@ -53,7 +53,6 @@ public class EventProcessor implements Processor {
     String creationTime = exchange.getIn().getHeader("creation_time", String.class);
     String modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
 
-    // e.g., https://drive.google.com/open?id=0B6YxyGZNOvsqdjM2MFJ5Y2JVanc
     String url = "https://drive.google.com/open?id=" + sourceID;
 
     String body = null;
@@ -76,26 +75,42 @@ public class EventProcessor implements Processor {
       json.put("fileContent", parseToPlainText2(destItem, fileType));
       json.put("category", category);
     } else if ("file".equals(sourceType) && "rename_file".equals(action)) {
-      json.put("title", sourceName);
-      json.put("storagePath", storagePath);
-      json.put("updated", modifiedTime);
+      // Create JSONObjects for proper atomic update format
+      // See:
+      // https://lucene.apache.org/solr/guide/6_6/updating-parts-of-documents.html
+      JSONObject sourceNameObj = new JSONObject();
+      json.put("title", sourceNameObj.put("set", sourceName));
+
+      JSONObject storagePathObj = new JSONObject();
+      json.put("storagePath", storagePathObj.put("set", storagePath));
+
+      JSONObject modifiedTimeObj = new JSONObject();
+      json.put("updated", modifiedTimeObj.put("set", modifiedTime));
+      log.info(json.toString());
     } else if ("file".equals(sourceType) && "update".equals(action)) {
       Tika tika = new Tika();
       File destItem = new File(storagePath);
       String fileType = tika.detect(destItem);
-      json.put("type", fileType);
-      json.put("fileContent", parseToPlainText2(destItem, fileType));
-      json.put("updated", modifiedTime);
+
+      JSONObject fileTypeObj = new JSONObject();
+      json.put("type", fileTypeObj.put("set", fileType));
+
+      JSONObject fileContentObj = new JSONObject();
+      json.put("fileContent", fileContentObj.put("set", parseToPlainText2(destItem, fileType)));
+
+      JSONObject modifiedTimeObj = new JSONObject();
+      json.put("updated", modifiedTimeObj.put("set", modifiedTime));
     } else if ("file".equals(sourceType) && "update_paths".equals(action)) {
       json.put("storagePath", storagePath);
     }
 
     if ("delete".equals(action)) {
       body = "{'delete':" + json.toString() + "}";
-    } else {
+    } else if ("download".equals(action)) {
       body = "[" + json.toString() + "]";
+    } else {
+      body = "{'add':{'doc':" + json.toString() + "}}";
     }
-
     log.debug("Json Mesage \n" + body);
     exchange.getIn().setBody(body);
 
