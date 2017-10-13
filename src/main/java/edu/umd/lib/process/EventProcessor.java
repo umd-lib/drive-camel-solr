@@ -40,43 +40,78 @@ public class EventProcessor implements Processor {
   @Override
   public void process(Exchange exchange) throws Exception {
 
-    log.info(exchange.getIn());
+    log.debug(exchange.getIn());
 
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
     String sourceName = exchange.getIn().getHeader("source_name", String.class);
     String storagePath = exchange.getIn().getHeader("local_path", String.class);
     String sourceType = exchange.getIn().getHeader("source_type", String.class);
-    String fileStatus = exchange.getIn().getHeader("fileStatus", String.class);
     String action = exchange.getIn().getHeader("action", String.class);
     String group = exchange.getIn().getHeader("group", String.class);
+    String teamDrive = exchange.getIn().getHeader("teamDrive", String.class);
     String category = exchange.getIn().getHeader("category", String.class);
+    String creationTime = exchange.getIn().getHeader("creation_time", String.class);
+    String modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
 
-    // e.g., https://drive.google.com/open?id=0B6YxyGZNOvsqdjM2MFJ5Y2JVanc
     String url = "https://drive.google.com/open?id=" + sourceID;
 
+    String body = null;
     JSONObject json = new JSONObject();
     json.put("id", sourceID);
 
-    String body = null;
-
-    if (sourceType == "file" && "download".equals(action)) {
+    if ("file".equals(sourceType) && "download".equals(action)) {
       json.put("title", sourceName);
       json.put("storagePath", storagePath);
       json.put("genre", "Google Drive");
       json.put("url", url);
       json.put("group", group);
+      json.put("teamDrive", teamDrive);
+      json.put("created", creationTime);
+      json.put("updated", modifiedTime);
       Tika tika = new Tika();
       File destItem = new File(storagePath);
       String fileType = tika.detect(destItem);
       json.put("type", fileType);
       json.put("fileContent", parseToPlainText2(destItem, fileType));
       json.put("category", category);
-      body = "[" + json.toString() + "]";
-    }
-    if ("delete".equals(action)) {
-      body = "{'delete':" + json.toString() + "}";
+    } else if ("file".equals(sourceType) && "rename_file".equals(action)) {
+      // Create JSONObjects for proper atomic update format
+      // See:
+      // https://lucene.apache.org/solr/guide/6_6/updating-parts-of-documents.html
+      JSONObject sourceNameObj = new JSONObject();
+      json.put("title", sourceNameObj.put("set", sourceName));
+
+      JSONObject storagePathObj = new JSONObject();
+      json.put("storagePath", storagePathObj.put("set", storagePath));
+
+      JSONObject modifiedTimeObj = new JSONObject();
+      json.put("updated", modifiedTimeObj.put("set", modifiedTime));
+      log.info(json.toString());
+    } else if ("file".equals(sourceType) && "update".equals(action)) {
+      Tika tika = new Tika();
+      File destItem = new File(storagePath);
+      String fileType = tika.detect(destItem);
+
+      JSONObject fileTypeObj = new JSONObject();
+      json.put("type", fileTypeObj.put("set", fileType));
+
+      JSONObject fileContentObj = new JSONObject();
+      json.put("fileContent", fileContentObj.put("set", parseToPlainText2(destItem, fileType)));
+
+      JSONObject modifiedTimeObj = new JSONObject();
+      json.put("updated", modifiedTimeObj.put("set", modifiedTime));
+    } else if ("file".equals(sourceType) && "update_paths".equals(action)) {
+      json.put("storagePath", storagePath);
     }
 
+    if ("delete".equals(action)) {
+      body = "{'delete':" + json.toString() + "}";
+    } else if ("download".equals(action)) {
+      body = "[" + json.toString() + "]";
+    } else {
+      body = "{'add':{'doc':" + json.toString() + "}}";
+    }
+    log.debug("Json Mesage \n" + body);
     exchange.getIn().setBody(body);
 
   }

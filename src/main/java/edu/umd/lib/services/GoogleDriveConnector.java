@@ -10,6 +10,8 @@ import org.apache.log4j.Logger;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
@@ -55,11 +57,20 @@ public class GoogleDriveConnector {
    * @throws IOException
    */
   public Drive getDriveService() throws IOException {
-    GoogleCredential credential = authorize();
+    final GoogleCredential credential = authorize();
     return new Drive.Builder(
-        HTTP_TRANSPORT, JSON_FACTORY, credential)
-            .setApplicationName(this.appName)
-            .build();
+        HTTP_TRANSPORT, JSON_FACTORY, credential).setHttpRequestInitializer(new HttpRequestInitializer() {
+          @Override
+          public void initialize(HttpRequest request) throws IOException {
+
+            credential.initialize(request);
+            request.setConnectTimeout(3 * 60000); // 3 minutes connect timeout
+                                                  
+            request.setReadTimeout(3 * 60000); // 3 minutes read timeout
+
+          }
+
+        }).setApplicationName(this.appName).build();
   }
 
   /**
