@@ -82,12 +82,14 @@ public class DrivePollEventProcessor implements Processor {
     Path tokenProperties = Paths.get(this.config.get("tokenProperties"));
     try {
       if (Files.notExists(tokenProperties) || Files.size(tokenProperties) == 0) {
-
+        // Perform bulk download of files
         downloadAllFiles();
 
       } else
 
       {
+        // Fetch incremental changes i.e. changes that have occurred since the
+        // last polling action
         String drivePageToken = null;
 
         do {
@@ -123,85 +125,37 @@ public class DrivePollEventProcessor implements Processor {
               for (Change change : changes.getChanges()) {
 
                 File changeItem = change.getFile();
-                boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
 
-                if (!isGoogleDoc) {
-                  log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
+                if (changeItem != null) {
+                  boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
 
-                  String sourcePath = getSourcePath(changeItem);
-                  log.info("Source Path of accessed file:" + sourcePath);
+                  if (!isGoogleDoc) {
+                    log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
 
-                  // We are interested only in the changes that occur inside the
-                  // published folder
-                  if ("published".equals(sourcePath.split("/")[2])) {
+                    String sourcePath = getSourcePath(changeItem);
+                    log.debug("Source Path of accessed file:" + sourcePath);
 
-                    // Delete event
-                    if (change.getRemoved() || changeItem.getTrashed()) {
+                    // We are interested only in the changes that occur inside
+                    // the published folder
+                    if ("published".equals(sourcePath.split("/")[2])) {
 
-                      if ("application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
-                        updateFileAttributeProperties(changeItem.getId(), null, "delete");
-                      }
+                      // Delete event
+                      if (change.getRemoved() || changeItem.getTrashed()) {
 
-                      if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+                        manageDeleteEvent(changeItem, sourcePath);
+                      } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
+                        if (!"published".equals(changeItem.getName())) {
 
-                        log.info("File Delete request");
-                        sendDeleteRequest(change, sourcePath);
-                      }
-                    } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
-                      if (!"published".equals(changeItem.getName())) {
-
-                        String directoryPath = this.config.get("localStorage") + sourcePath;
-                        String storedFilePath = checkFileAttribute(changeItem.getId());
-
-                        if (storedFilePath == null) {
-                          log.info("Makedir request");
-                          sendMakedirRequest(directoryPath, changeItem.getId());
-                        } else if (storedFilePath != null
-                            && !storedFilePath.equals(directoryPath)) {
-                          log.info("Directory Rename request");
-                          sendDirRenameRequest(storedFilePath, directoryPath, changeItem);
-                          log.info("Update File Paths request");
-                          updateFilePathChanges(changeItem);
-
+                          manageDirectoryEvents(changeItem, sourcePath);
                         }
-                      }
-                    } else {
-
-                      // Either its a new file download, file rename or a file
-                      // update request
-
-                      String storedFilePath = checkFileAttribute(changeItem.getId());
-
-                      if (storedFilePath == null) {
-                        // New file download request
-                        log.info("New File download request");
-                        sendDownloadRequest(changeItem, sourcePath);
                       } else {
+                        manageFileEvents(changeItem, sourcePath);
+                      }
 
-                        Path file = Paths.get(storedFilePath);
-
-                        String storedFileName = storedFilePath.substring(storedFilePath.lastIndexOf("/") + 1,
-                            storedFilePath.length());
-
-                        // Checking for content update
-                        if (!changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
-                          log.info("File update request");
-                          sendUpdateContentRequest(changeItem, storedFilePath);
-                        }
-
-                        // Checking for file rename
-                        if (!storedFileName.equals(changeItem.getName())) {
-                          log.info("File Rename request");
-                          sendFileRenameRequest(storedFilePath, changeItem);
-                        }
-
-                      } // End of file rename or update check
-
-                    } // End of file download,rename or update
-
-                  }
-                } // End of isGoogleDoc check
-              }
+                    } // End of published folder check
+                  } // End of isGoogleDoc check
+                } // End of null check
+              } // End of for loop for changes
 
               // save latest page token
               if (changes.getNewStartPageToken() != null) {
@@ -218,15 +172,150 @@ public class DrivePollEventProcessor implements Processor {
         } while (drivePageToken != null);
 
       }
-    } catch (
-
-    IOException e) {
-      e.printStackTrace();
     } catch (Exception e) {
       e.printStackTrace();
     }
 
   }
+
+  /**
+   * This method handles all events related to file changes
+   *
+   * @param changeItem
+   * @param sourcePath
+   */
+  public void manageFileEvents(File changeItem, String sourcePath) {
+
+    // Either its a new file download, file rename or a file
+    // update request
+
+    String storedFilePath = checkFileAttribute(changeItem.getId());
+
+    if (storedFilePath == null) {
+      // New file download request
+      log.info("New File download request");
+      sendDownloadRequest(changeItem, sourcePath);
+    } else {
+
+      Path file = Paths.get(storedFilePath);
+      Path storedFileName = file.getFileName();
+
+      // Checking for file content update
+      if (!changeItem.getMd5Checksum().equals(getMd5ForFile(file))) {
+        log.info("File update request");
+        sendUpdateContentRequest(changeItem, storedFilePath);
+      }
+
+      // Checking for file rename
+      if (!storedFileName.toString().equals(changeItem.getName())) {
+        log.info("File Rename request");
+        sendFileRenameRequest(storedFilePath, changeItem);
+      }
+
+      // For checking file move, we are comparing the paths
+      // without the file name.
+      // (we are skipping the filename because in the
+      // scenario that a file rename + file move event
+      // occurs we are already handling file rename
+      // separately, and if we keep the filename in the path
+      // while checking for the file move event, this event
+      // will be triggered even when the file rename occurs.
+      String localPathServerFile = this.config.get("localStorage")
+          + sourcePath.substring(0, sourcePath.lastIndexOf("/"));
+      String localFilePath = storedFilePath.substring(0, storedFilePath.lastIndexOf("/"));
+
+      // Checking for file move request
+      if (!localPathServerFile.equals(localFilePath)) {
+        sendFileMoveRequest(changeItem, localFilePath + "/" + storedFileName,
+            localPathServerFile + "/" + storedFileName, sourcePath);
+      }
+    }
+  }
+
+  /**
+   * This method handles all the events related to directory changes
+   *
+   * @param changeItem
+   * @param sourcePath
+   */
+  public void manageDirectoryEvents(File changeItem, String sourcePath) {
+
+    String directoryPath = this.config.get("localStorage") + sourcePath;
+    String storedFilePath = checkFileAttribute(changeItem.getId());
+
+    if (storedFilePath == null) {
+      log.info("Makedir request");
+      sendMakedirRequest(directoryPath, changeItem.getId());
+    } else {
+
+      Path file = Paths.get(storedFilePath);
+      Path storedDirName = file.getFileName();
+
+      if (!storedDirName.toString().equals(changeItem.getName())) {
+
+        log.info("Directory Rename request");
+        sendDirRenameRequest(storedFilePath, directoryPath, changeItem);
+
+        log.info("Update File Paths request");
+        updateFilePathChanges(changeItem.getId());
+      }
+
+      String localPathServerFile = this.config.get("localStorage")
+          + sourcePath.substring(0, sourcePath.lastIndexOf("/"));
+      String localFilePath = storedFilePath.substring(0, storedFilePath.lastIndexOf("/"));
+
+      // Checking for directory move request
+      if (!localPathServerFile.equals(localFilePath)) {
+
+        log.info("Directory Move request");
+        sendDirMoveRequest(changeItem, localFilePath + "/" + storedDirName,
+            localPathServerFile + "/" + storedDirName, sourcePath);
+
+        log.info("Update File Paths request");
+        updateFilePathChanges(changeItem.getId());
+      }
+
+    }
+
+  }
+
+  /**
+   * This method handles the delete event for files and directories
+   *
+   * @param changeItem
+   * @param sourcePath
+   */
+  public void manageDeleteEvent(File changeItem, String sourcePath) {
+    if ("application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+
+      log.info("Directory Delete request");
+      updateFileAttributeProperties(changeItem.getId(), null, "delete");
+
+      List<File> files = fetchFileList(changeItem.getId());
+
+      for (File file : files) {
+
+        if (!"application/vnd.google-apps.folder".equals(file.getMimeType())) {
+          sendDeleteRequest(file, getSourcePath(file));
+        } else {
+          updateFileAttributeProperties(file.getId(), null, "delete");
+        }
+      }
+    }
+
+    if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+
+      log.info("File Delete request");
+      sendDeleteRequest(changeItem, sourcePath);
+    }
+  }
+
+  /**
+   * This method is used to check if the file is a Google Doc
+   *
+   * @param mimeType
+   * @return boolean
+   */
 
   public boolean chkIfGoogleDoc(String mimeType) {
 
@@ -388,16 +477,58 @@ public class DrivePollEventProcessor implements Processor {
    * @param service
    * @param change
    * @param sourcePath
-   * @throws IOException
    */
-  private void sendDeleteRequest(Change change, String sourcePath) {
+  public void sendDeleteRequest(File changeItem, String sourcePath) {
 
     HashMap<String, String> headers = new HashMap<String, String>();
 
     headers.put("action", "delete");
-    headers.put("source_id", change.getFileId());
+    headers.put("source_id", changeItem.getId());
     headers.put("local_path", this.config.get("localStorage") + sourcePath);
     headers.put("source_type", "file");
+    sendActionExchange(headers, "");
+  }
+
+  /**
+   * Sends a new message exchange to ActionListener requesting to move a file
+   *
+   * @param file
+   * @param localFilePath
+   * @param localFilePathServerFile
+   */
+
+  public void sendFileMoveRequest(File file, String localFilePath, String localPathServerFile, String srcPath) {
+    HashMap<String, String> headers = new HashMap<String, String>();
+
+    headers.put("action", "move_file");
+    headers.put("source_type", "file");
+    headers.put("source_id", file.getId());
+    headers.put("local_path", localPathServerFile);
+    headers.put("old_path", localFilePath);
+
+    String paths[] = srcPath.split("/");
+
+    // We have this condition to check if the file has been moved to another
+    // category. In that case, we need to update the category in Solr too.
+    if (paths.length > 3) {
+      for (String category : categories) {
+        if (paths[3].equals(category)) {
+          headers.put("category", category);
+        }
+      }
+    }
+    sendActionExchange(headers, "");
+  }
+
+  public void sendDirMoveRequest(File file, String localFilePath, String localPathServerFile, String srcPath) {
+    HashMap<String, String> headers = new HashMap<String, String>();
+
+    headers.put("action", "move_dir");
+    headers.put("source_type", "directory");
+    headers.put("source_id", file.getId());
+    headers.put("local_path", localPathServerFile);
+    headers.put("old_path", localFilePath);
+
     sendActionExchange(headers, "");
 
   }
@@ -410,7 +541,7 @@ public class DrivePollEventProcessor implements Processor {
    * @throws IOException
    * @throws JSONException
    */
-  private void downloadAllFiles() {
+  public void downloadAllFiles() {
 
     log.info("First time connecting to Google Drive Account");
     log.info("Sending requests to download all published files of this account...");
@@ -547,9 +678,9 @@ public class DrivePollEventProcessor implements Processor {
         pageToken = list.getNextPageToken();
       } while (pageToken != null);
 
-    } catch (IOException e) {
+    } catch (Exception ex) {
 
-      e.printStackTrace();
+      ex.printStackTrace();
     }
   }
 
@@ -799,26 +930,12 @@ public class DrivePollEventProcessor implements Processor {
           parentID = parent.getParents().get(0);
         }
       }
-    } catch (IOException ex) {
-      ex.printStackTrace();
+    } catch (Exception e) {
+      e.printStackTrace();
     }
 
     while (!path.isEmpty()) {
       fullPathBuilder.append("/").append(path.pop());
-    }
-
-    String sourceMimeType = item.getMimeType();
-
-    if (sourceMimeType.equals("application/vnd.google-apps.document")) {
-      fullPathBuilder.append(".docx");
-    } else if (sourceMimeType.equals("application/vnd.google-apps.spreadsheet")) {
-      fullPathBuilder.append(".xlsx");
-    } else if (sourceMimeType.equals("application/vnd.google-apps.drawing")) {
-      fullPathBuilder.append(".jpg");
-    } else if (sourceMimeType.equals("application/vnd.google-apps.presentation")) {
-      fullPathBuilder.append(".pptx");
-    } else if (sourceMimeType.equals("application/vnd.google-apps.script")) {
-      fullPathBuilder.append(".json");
     }
 
     return fullPathBuilder.toString();
@@ -833,7 +950,6 @@ public class DrivePollEventProcessor implements Processor {
 
   public List<File> fetchFileList(String fileId) {
 
-    log.debug("Inside fetchFileList");
     List<File> fullFilesList = new ArrayList<File>();
     String teamDriveId = null;
 
@@ -862,9 +978,9 @@ public class DrivePollEventProcessor implements Processor {
         fullFilesList.addAll(fileList);
 
         for (File f : fileList) {
-          if ("application/vnd.google-apps.folder".equals(f.getMimeType())) {
-            fullFilesList.addAll(fetchFileList(f.getId()));
-          }
+
+          fullFilesList.addAll(fetchFileList(f.getId()));
+
         }
 
         pageToken = list.getNextPageToken();
@@ -879,10 +995,10 @@ public class DrivePollEventProcessor implements Processor {
     return fullFilesList;
   }
 
-  public void updateFilePathChanges(File changeItem) {
+  public void updateFilePathChanges(String fileId) {
 
     HashMap<String, String> headers = new HashMap<String, String>();
-    List<File> files = fetchFileList(changeItem.getId());
+    List<File> files = fetchFileList(fileId);
 
     for (File file : files) {
       String originalPath = checkFileAttribute(file.getId());
@@ -891,15 +1007,28 @@ public class DrivePollEventProcessor implements Processor {
         String url = getSourcePath(file);
         String fullPath = this.config.get("localStorage") + url;
 
-        if (!"application/vnd.google-apps.folder".equals(file.getMimeType())) {
+        headers.put("action", "update_paths");
+        headers.put("source_id", file.getId());
+        headers.put("local_path", fullPath);
 
-          headers.put("action", "update_paths");
-          headers.put("source_id", file.getId());
-          headers.put("local_path", fullPath);
+        if (!"application/vnd.google-apps.folder".equals(file.getMimeType())) {
           headers.put("source_type", "file");
 
-          sendActionExchange(headers, "");
+          String paths[] = url.split("/");
+
+          // We have this condition to check if the file has been moved to
+          // another
+          // category. In that case, we need to update the category in Solr too.
+          if (paths.length > 3) {
+            for (String category : categories) {
+              if (paths[3].equals(category)) {
+                headers.put("category", category);
+              }
+            }
+          }
         }
+
+        sendActionExchange(headers, "");
       }
 
     }
