@@ -11,8 +11,10 @@ import org.apache.camel.builder.RouteBuilder;
 import edu.umd.lib.process.DriveDeleteProcessor;
 import edu.umd.lib.process.DriveDirRenameProcessor;
 import edu.umd.lib.process.DriveDownloadProcessor;
+import edu.umd.lib.process.DriveFileMoveProcessor;
 import edu.umd.lib.process.DriveFileRenameProcessor;
 import edu.umd.lib.process.DriveMakedirProcessor;
+import edu.umd.lib.process.DriveMoveDirProcessor;
 import edu.umd.lib.process.DrivePathUpdateProcessor;
 import edu.umd.lib.process.DrivePollEventProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
@@ -47,6 +49,8 @@ public class SolrRouter extends RouteBuilder {
   Predicate renamefile = header("action").isEqualTo("rename_file");
   Predicate update = header("action").isEqualTo("update");
   Predicate update_paths = header("action").isEqualTo("update_paths");
+  Predicate movefile = header("action").isEqualTo("move_file");
+  Predicate moveDir = header("action").isEqualTo("move_dir");
 
   @Override
   public void configure() throws Exception {
@@ -108,6 +112,10 @@ public class SolrRouter extends RouteBuilder {
         .to("direct:update_paths")
         .when(update)
         .to("direct:update.filesys")
+        .when(movefile)
+        .to("direct:movefile.filesys")
+        .when(moveDir)
+        .to("direct:movedir.filesys")
         .otherwise()
         .to("direct:default");
 
@@ -122,12 +130,12 @@ public class SolrRouter extends RouteBuilder {
         .to("direct:update.solr");
 
     /**
-     * FileDeleter: receives message with info about a file to delete & handles
-     * by sending message to SolrDeleter
+     * FileDeleter: receives message with info about a file/dir to delete &
+     * handles by sending message to SolrDeleter
      */
     from("direct:delete.filesys")
         .routeId("FileDeleter")
-        .log("Deleting file")
+        .log("Deleting file/directory")
         .process(new DriveDeleteProcessor(config))
         .to("direct:delete.solr");
 
@@ -157,6 +165,27 @@ public class SolrRouter extends RouteBuilder {
         .routeId("FileRenamer")
         .log("Renaming a file on local file system and in Solr")
         .process(new DriveFileRenameProcessor(config))
+        .to("direct:update.solr");
+
+    /**
+     * FileMover: receives exchanges with info about a file to move & handles by
+     * moving the file to the destination path
+     */
+    from("direct:movefile.filesys")
+        .routeId("FileMover")
+        .log("Moving a file on local file system and in Solr")
+        .process(new DriveFileMoveProcessor(config))
+        .to("direct:update.solr");
+
+    /**
+     * DirMover: receives exchanges with info about a directory to move &
+     * handles by moving the directory along with the files in it to the
+     * destination path
+     */
+    from("direct:movedir.filesys")
+        .routeId("DirectoryMover")
+        .log("Moving a directory and its contents on local file system")
+        .process(new DriveMoveDirProcessor(config))
         .to("direct:update.solr");
 
     /**

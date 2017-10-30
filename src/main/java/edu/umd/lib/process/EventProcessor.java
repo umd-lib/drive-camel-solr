@@ -17,6 +17,7 @@ import org.apache.tika.parser.pdf.PDFParser;
 import org.apache.tika.parser.txt.TXTParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.json.JSONObject;
+import org.springframework.util.StringUtils;
 import org.xml.sax.SAXException;
 
 /**
@@ -29,7 +30,6 @@ import org.xml.sax.SAXException;
  * org.apache.tika.parser.jpeg.*; import org.apache.tika.parser.image.*;
  */
 
-@SuppressWarnings("unused")
 public class EventProcessor implements Processor {
 
   private static Logger log = Logger.getLogger(EventProcessor.class);
@@ -87,6 +87,15 @@ public class EventProcessor implements Processor {
       JSONObject modifiedTimeObj = new JSONObject();
       json.put("updated", modifiedTimeObj.put("set", modifiedTime));
       log.info(json.toString());
+    } else if ("file".equals(sourceType) && "move_file".equals(action)) {
+
+      JSONObject storagePathObj = new JSONObject();
+      json.put("storagePath", storagePathObj.put("set", storagePath));
+
+      JSONObject categoryObj = new JSONObject();
+      json.put("category", categoryObj.put("set", category));
+
+      log.info(json.toString());
     } else if ("file".equals(sourceType) && "update".equals(action)) {
       Tika tika = new Tika();
       File destItem = new File(storagePath);
@@ -101,7 +110,14 @@ public class EventProcessor implements Processor {
       JSONObject modifiedTimeObj = new JSONObject();
       json.put("updated", modifiedTimeObj.put("set", modifiedTime));
     } else if ("file".equals(sourceType) && "update_paths".equals(action)) {
-      json.put("storagePath", storagePath);
+
+      JSONObject storagePathObj = new JSONObject();
+      json.put("storagePath", storagePathObj.put("set", storagePath));
+
+      if (!StringUtils.isEmpty(category)) {
+        JSONObject categoryObj = new JSONObject();
+        json.put("category", categoryObj.put("set", category));
+      }
     }
 
     if ("delete".equals(action)) {
