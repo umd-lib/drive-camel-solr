@@ -1,9 +1,5 @@
 package edu.umd.lib.process;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 
 import org.apache.camel.Exchange;
@@ -28,14 +24,7 @@ public class DriveDirRenameProcessor extends EventProcessor {
       DrivePollEventProcessor processor = new DrivePollEventProcessor(this.config);
 
       String fileId = exchange.getIn().getHeader("source_id", String.class);
-      Path oldPath = Paths.get(exchange.getIn().getHeader("old_path", String.class));
-      Path newPath = Paths.get(exchange.getIn().getHeader("local_path", String.class));
 
-      Files.move(oldPath, newPath);
-      processor.updateFileAttributeProperties(fileId, newPath.toString(), null);
-
-    } catch (IOException e) {
-      log.info("File Not found. Check the file paths.");
     } catch (Exception e) {
       e.printStackTrace();
     }
