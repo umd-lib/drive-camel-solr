@@ -9,41 +9,11 @@ public class SolrJsonGenerator {
 
   private static Logger log = Logger.getLogger(SolrJsonGenerator.class);
 
-  SolrJsonGenerator() {
+  public SolrJsonGenerator() {
 
   }
 
-  public static String deleteJson() {
-    return null;
-  }
-
-  /*
-   * public String generateJsonMessage(Exchange exchange) throws Exception {
-   *
-   * String action = exchange.getIn().getHeader("action", String.class); String
-   * sourceID = exchange.getIn().getHeader("source_id", String.class); String
-   * sourceName = exchange.getIn().getHeader("source_name", String.class);
-   * String storagePath = exchange.getIn().getHeader("local_path",
-   * String.class); String sourceType =
-   * exchange.getIn().getHeader("source_type", String.class); String group =
-   * exchange.getIn().getHeader("group", String.class); String teamDrive =
-   * exchange.getIn().getHeader("teamDrive", String.class); String category =
-   * exchange.getIn().getHeader("category", String.class); String creationTime =
-   * exchange.getIn().getHeader("creation_time", String.class); String
-   * modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
-   *
-   * String messageBody = null; JSONObject json = new JSONObject();
-   * json.put("id", sourceID);
-   *
-   * switch (action) { case "new_file": messageBody = newFileJson(json, );
-   * break; case "rename_file": renameFileJson(); break; case "move_file":
-   * moveFileJson(); break; case "update_file": updateFileJson(); break; case
-   * "delete_file": deleteEventJson(); break; } return messageBody;
-   *
-   * }
-   */
-
-  public static String newFileJson(Exchange exchange) throws JSONException {
+  public static String newFileJson(Exchange exchange, String encodedMsg, String fileContent) throws JSONException {
     String id = exchange.getIn().getHeader("source_id", String.class);
     String title = exchange.getIn().getHeader("source_name", String.class);
     String group = exchange.getIn().getHeader("group", String.class);
@@ -53,9 +23,8 @@ public class SolrJsonGenerator {
     String modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
     String fileType = exchange.getIn().getHeader("file_type", String.class);
     String fileChecksum = exchange.getIn().getHeader("file_checksum", String.class);
-    String fileContent = exchange.getIn().getHeader("file_content", String.class);
     String storagePath = exchange.getIn().getHeader("storage_path", String.class);
-    String fileEncoded = exchange.getIn().getHeader("encodedMsg", String.class);
+
     String genre = "Google Drive";
     String url = "https://drive.google.com/open?id=" + id;
 
@@ -67,28 +36,13 @@ public class SolrJsonGenerator {
     json.put("url", url);
     json.put("group", group);
     json.put("teamDrive", teamDrive);
-    // json.put("fileContent", fileContent);
+    json.put("fileContent", fileContent);
     json.put("type", fileType);
     json.put("category", category);
     json.put("fileChecksum", fileChecksum);
-    // json.put("fileEncoded", fileEncoded);
+    json.put("fileEncoded", encodedMsg);
     json.put("created", creationTime);
     json.put("updated", modifiedTime);
-
-    exchange.getIn().removeHeader("id");
-    exchange.getIn().removeHeader("title");
-    exchange.getIn().removeHeader("storagePath");
-    exchange.getIn().removeHeader("genre");
-    exchange.getIn().removeHeader("url");
-    exchange.getIn().removeHeader("group");
-    exchange.getIn().removeHeader("teamDrive");
-    // exchange.getIn().removeHeader("fileContent");
-    exchange.getIn().removeHeader("type");
-    exchange.getIn().removeHeader("category");
-    exchange.getIn().removeHeader("fileChecksum");
-    // exchange.getIn().removeHeader("fileEncoded");
-    exchange.getIn().removeHeader("created");
-    exchange.getIn().removeHeader("updated");
 
     String messageBody = "[" + json.toString() + "]";
     return messageBody;
@@ -103,46 +57,65 @@ public class SolrJsonGenerator {
     return messageBody;
   }
 
-  public static String renameFileJson(JSONObject json, Exchange exchange) throws JSONException {
+  public static String renameFileJson(Exchange exchange) throws JSONException {
+
+    JSONObject json = new JSONObject();
+
+    json.put("id", exchange.getIn().getHeader("source_id", String.class));
 
     JSONObject sourceNameObj = new JSONObject();
     json.put("title", sourceNameObj.put("set", exchange.getIn().getHeader("source_name", String.class)));
 
     JSONObject storagePathObj = new JSONObject();
-    json.put("fullPath", storagePathObj.put("set", exchange.getIn().getHeader("full_path", String.class)));
+    json.put("storagePath", storagePathObj.put("set", exchange.getIn().getHeader("storage_path", String.class)));
 
     JSONObject modifiedTimeObj = new JSONObject();
     json.put("updated", modifiedTimeObj.put("set", exchange.getIn().getHeader("modified_time", String.class)));
 
-    return json.toString();
+    String messageBody = "{'add':{'doc':" + json.toString() + "}}";
+    return messageBody;
   }
 
-  public static String moveFileJson(JSONObject json, Exchange exchange) throws JSONException {
+  public static String moveFileJson(Exchange exchange) throws JSONException {
+    JSONObject json = new JSONObject();
+
+    json.put("id", exchange.getIn().getHeader("source_id", String.class));
+
     JSONObject storagePathObj = new JSONObject();
-    json.put("fullPath", storagePathObj.put("set", exchange.getIn().getHeader("full_path", String.class)));
+    json.put("storagePath", storagePathObj.put("set", exchange.getIn().getHeader("storage_path", String.class)));
 
     JSONObject categoryObj = new JSONObject();
     json.put("category", categoryObj.put("set", exchange.getIn().getHeader("category", String.class)));
 
-    return json.toString();
+    JSONObject groupObj = new JSONObject();
+    json.put("group", groupObj.put("set", exchange.getIn().getHeader("group", String.class)));
+
+    JSONObject teamDriveObj = new JSONObject();
+    json.put("teamDrive", teamDriveObj.put("set", exchange.getIn().getHeader("teamDrive", String.class)));
+
+    String messageBody = "{'add':{'doc':" + json.toString() + "}}";
+    return messageBody;
   }
 
-  public static String updateFileJson(JSONObject json, Exchange exchange) throws JSONException {
-    // Tika tika = new Tika();
-    // File destItem = new File(storagePath);
-    // String fileType = tika.detect(destItem);
+  public static String updateFileJson(Exchange exchange, String encodedMsg, String fileContent) throws JSONException {
+    JSONObject json = new JSONObject();
 
-    // JSONObject fileTypeObj = new JSONObject();
-    // json.put("type", fileTypeObj.put("set", fileType));
+    json.put("id", exchange.getIn().getHeader("source_id", String.class));
 
-    // JSONObject fileContentObj = new JSONObject();
-    // json.put("fileContent", fileContentObj.put("set",
-    // parseToPlainText2(destItem, fileType)));
+    JSONObject fileContentObj = new JSONObject();
+    json.put("fileContent", fileContentObj.put("set", fileContent));
+
+    JSONObject encodeFileObj = new JSONObject();
+    json.put("fileEncoded", encodeFileObj.put("set", encodedMsg));
+
+    JSONObject fileCheckSumObj = new JSONObject();
+    json.put("fileChecksum", fileCheckSumObj.put("set", exchange.getIn().getHeader("file_checksum", String.class)));
 
     JSONObject modifiedTimeObj = new JSONObject();
     json.put("updated", modifiedTimeObj.put("set", exchange.getIn().getHeader("modified_time", String.class)));
 
-    return null;
+    String messageBody = "{'add':{'doc':" + json.toString() + "}}";
+    return messageBody;
   }
 
 }

@@ -12,7 +12,7 @@ public abstract class AbstractSolrProcessor implements Processor {
   @Override
   public void process(Exchange exchange) throws Exception {
     String messageBody = generateMessage(exchange);
-    log.info("Json msg: " + messageBody);
+    log.debug("Json msg: " + messageBody);
     exchange.getIn().setBody(messageBody);
   }
 

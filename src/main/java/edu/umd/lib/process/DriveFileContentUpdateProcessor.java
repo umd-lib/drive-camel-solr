@@ -28,22 +28,17 @@ import com.google.api.services.drive.model.File;
 
 import edu.umd.lib.services.GoogleDriveConnector;
 
-/**
- * @author audani
- */
+public class DriveFileContentUpdateProcessor extends AbstractSolrProcessor {
 
-public class DriveNewFileProcessor extends AbstractSolrProcessor {
-
-  private static Logger log = Logger.getLogger(DriveNewFileProcessor.class);
+  private static Logger log = Logger.getLogger(DriveFileContentUpdateProcessor.class);
   private Map<String, String> config;
 
-  public DriveNewFileProcessor(Map<String, String> config) {
-
+  public DriveFileContentUpdateProcessor(Map<String, String> config) {
     this.config = config;
   }
 
   @Override
-  public String generateMessage(Exchange exchange) throws Exception {
+  String generateMessage(Exchange exchange) throws Exception {
     GoogleDriveConnector connector = new GoogleDriveConnector(this.config);
     Drive service = connector.getDriveService();
 
@@ -70,8 +65,6 @@ public class DriveNewFileProcessor extends AbstractSolrProcessor {
       service.files().get(sourceID).executeMediaAndDownloadTo(out);
 
       String allowedFileSize = this.config.get("allowedFileSize");
-      log.debug("File size in Drive:" + file.getSize());
-
       if (file.getSize() < Integer.parseInt(allowedFileSize)) {
         byte[] encoded = Base64.encodeBase64(Files.readAllBytes(outputFile));
         encodedMessage = new String(encoded, StandardCharsets.US_ASCII);
@@ -79,14 +72,12 @@ public class DriveNewFileProcessor extends AbstractSolrProcessor {
 
       Tika tika = new Tika();
       String fileType = tika.detect(outputFile.toFile());
-      exchange.getIn().setHeader("file_type", fileType);
-
       String fileContent = parseToPlainText2(outputFile.toFile(), fileType);
 
       out.flush();
       out.close();
       Files.delete(outputFile);
-      messageBody = SolrJsonGenerator.newFileJson(exchange, encodedMessage, fileContent);
+      messageBody = SolrJsonGenerator.updateFileJson(exchange, encodedMessage, fileContent);
 
     }
     return messageBody;

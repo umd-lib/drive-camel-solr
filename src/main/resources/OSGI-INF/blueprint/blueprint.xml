@@ -25,11 +25,11 @@
                 <cm:property name="email.uri" value="smtp://localhost:25" />
 
                 
-                <cm:property name="drive.clientsecret" value="/Users/audani/Desktop/drive integration/client_secret.json" />
+                <cm:property name="drive.clientsecret" value="/path/to/client.json" />
                 <cm:property name="drive.app_user_name" value="Drive Integration" />
                 <cm:property name="drive.max_cache_entries" value="" />
-                <cm:property name="drive.token_properties" value="/Users/audani/Desktop/drive integration/googledrivetoken.properties" />
-                <cm:property name="drive.drive_acronym_properties" value="/Users/audani/Desktop/drive integration/driveacronym.properties" />
+                <cm:property name="drive.token_properties" value="/tmp/googledrivetoken.properties" />
+                <cm:property name="drive.drive_acronym_properties" value="/tmp/driveacronym.properties" />
                 <cm:property name="drive.poll_interval" value="60s" />
                 <cm:property name="drive.allowed_filesize" value="1000000" />
                 
