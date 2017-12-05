@@ -9,13 +9,10 @@ import org.apache.camel.Predicate;
 import org.apache.camel.builder.RouteBuilder;
 
 import edu.umd.lib.process.DriveDeleteProcessor;
-import edu.umd.lib.process.DriveDirRenameProcessor;
-import edu.umd.lib.process.DriveDownloadProcessor;
+import edu.umd.lib.process.DriveFileContentUpdateProcessor;
 import edu.umd.lib.process.DriveFileMoveProcessor;
 import edu.umd.lib.process.DriveFileRenameProcessor;
-import edu.umd.lib.process.DriveMakedirProcessor;
-import edu.umd.lib.process.DriveMoveDirProcessor;
-import edu.umd.lib.process.DrivePathUpdateProcessor;
+import edu.umd.lib.process.DriveNewFileProcessor;
 import edu.umd.lib.process.DrivePollEventProcessor;
 import edu.umd.lib.process.ExceptionProcessor;
 
@@ -31,10 +28,9 @@ public class SolrRouter extends RouteBuilder {
   private String appUserName;
   private String maxCacheTries;
   private String tokenProperties;
-  private String fileAttributeProperties;
   private String pollInterval;
+  private String allowedFileSize;
   private String solrBaseUrl;
-  private String localStorage;
   private String driveAcronymProperties;
 
   Map<String, String> config = new HashMap<String, String>();
@@ -42,15 +38,11 @@ public class SolrRouter extends RouteBuilder {
   public final String emailSubject = "Exception Occured in Drive-Solr Integration, "
       + "Total Number of Attempts: {{camel.maximum_tries}} retries.";
 
-  Predicate delete = header("action").isEqualTo("delete");
-  Predicate download = header("action").isEqualTo("download");
-  Predicate makedir = header("action").isEqualTo("make_directory");
-  Predicate renamedir = header("action").isEqualTo("rename_dir");
+  Predicate delete = header("action").isEqualTo("delete_file");
+  Predicate newfile = header("action").isEqualTo("new_file");
   Predicate renamefile = header("action").isEqualTo("rename_file");
-  Predicate update = header("action").isEqualTo("update");
-  Predicate update_paths = header("action").isEqualTo("update_paths");
+  Predicate update = header("action").isEqualTo("update_file");
   Predicate movefile = header("action").isEqualTo("move_file");
-  Predicate moveDir = header("action").isEqualTo("move_dir");
 
   @Override
   public void configure() throws Exception {
@@ -59,10 +51,9 @@ public class SolrRouter extends RouteBuilder {
     config.put("appName", appUserName);
     config.put("maxCacheTries", maxCacheTries);
     config.put("tokenProperties", tokenProperties);
-    config.put("fileAttributeProperties", fileAttributeProperties);
     config.put("driveAcronymProperties", driveAcronymProperties);
     config.put("solrBaseUrl", solrBaseUrl);
-    config.put("localStorage", localStorage);
+    config.put("allowedFileSize", allowedFileSize);
 
     /**
      * A generic error handler (specific to this RouteBuilder)
@@ -98,118 +89,68 @@ public class SolrRouter extends RouteBuilder {
         .routeId("ActionListener")
         .log("Received an event from Drive polling.")
         .choice()
-        .when(download)
-        .to("direct:download.filesys")
-        .when(makedir)
-        .to("direct:makedir.filesys")
+        .when(newfile)
+        .to("direct:newfile.filesys")
         .when(delete)
         .to("direct:delete.filesys")
-        .when(renamedir)
-        .to("direct:renamedir.filesys")
         .when(renamefile)
         .to("direct:renamefile.filesys")
-        .when(update_paths)
-        .to("direct:update_paths")
         .when(update)
         .to("direct:update.filesys")
         .when(movefile)
         .to("direct:movefile.filesys")
-        .when(moveDir)
-        .to("direct:movedir.filesys")
         .otherwise()
         .to("direct:default");
 
     /**
-     * FileDownloader: receives exchanges with info about a file to download &
-     * handles by downloading the file to the local system
+     * NewFileProcessor: receives exchanges with info about adding a new file to
+     * Solr
      */
-    from("direct:download.filesys")
-        .routeId("FileDownloader")
-        .log("Request received to download a file from the Drive.")
-        .process(new DriveDownloadProcessor(config))
+    from("direct:newfile.filesys")
+        .routeId("NewFile")
+        .log("Request received to add a new file")
+        .process(new DriveNewFileProcessor(config))
         .to("direct:update.solr");
 
     /**
-     * FileDeleter: receives message with info about a file/dir to delete &
-     * handles by sending message to SolrDeleter
+     * FileDeleter: receives exchanges with info about a file to delete from
+     * Solr
      */
     from("direct:delete.filesys")
         .routeId("FileDeleter")
-        .log("Deleting file/directory")
+        .log("Deleting file from Solr")
         .process(new DriveDeleteProcessor(config))
         .to("direct:delete.solr");
 
     /**
-     * DirectoryMaker: receives a message with info about a folder to create &
-     * handles by creating that directory on the local file system.
-     */
-    from("direct:makedir.filesys")
-        .routeId("DirectoryMaker")
-        .log("Creating a directory on local file system")
-        .process(new DriveMakedirProcessor(config));
-
-    /**
-     * FileRenamer: receives exchanges with info about a directory to rename &
-     * handles by renaming the directory
-     */
-    from("direct:renamedir.filesys")
-        .routeId("DirectoryRenamer")
-        .log("Renaming a directory on local file system")
-        .process(new DriveDirRenameProcessor(config));
-
-    /**
-     * FileRenamer: receives exchanges with info about a file to rename &
-     * handles by renaming the file
+     * FileRenamer: receives exchanges with info renaming a file in Solr
      */
     from("direct:renamefile.filesys")
         .routeId("FileRenamer")
-        .log("Renaming a file on local file system and in Solr")
+        .log("Renaming a file in Solr")
         .process(new DriveFileRenameProcessor(config))
         .to("direct:update.solr");
 
     /**
-     * FileMover: receives exchanges with info about a file to move & handles by
-     * moving the file to the destination path
+     * FileMover: receives exchanges with info about moving a file in Solr
      */
     from("direct:movefile.filesys")
         .routeId("FileMover")
-        .log("Moving a file on local file system and in Solr")
+        .log("Updating file path in Solr")
         .process(new DriveFileMoveProcessor(config))
         .to("direct:update.solr");
 
     /**
-     * DirMover: receives exchanges with info about a directory to move &
-     * handles by moving the directory along with the files in it to the
-     * destination path
-     */
-    from("direct:movedir.filesys")
-        .routeId("DirectoryMover")
-        .log("Moving a directory and its contents on local file system")
-        .process(new DriveMoveDirProcessor(config))
-        .to("direct:update.solr");
-
-    /**
-     * FilePathsUpdater: Receives exchanges about path updates after a directory
-     * has been renamed
-     */
-    from("direct:update_paths")
-        .routeId("FilePathsUpdater")
-        .log("Updating the paths in the properties file and Solr for all the files within a renamed directory")
-        .process(new DrivePathUpdateProcessor(config))
-        .to("direct:update.solr");
-
-    /**
-     * FileUpdater: receives exchanges with info about a file to be updates and
-     * handles by updating the file on the local system
+     * FileUpdater: receives exchanges with info updating the content of a file
+     * in Solr
      */
     from("direct:update.filesys")
         .routeId("FileUpdater")
         .log("Request received to update a file")
-        .process(new DriveDownloadProcessor(config))
+        .process(new DriveFileContentUpdateProcessor(config))
         .to("direct:update.solr");
 
     /**
-     *
      *
      * Connect to Solr and update the Drive information
      */
@@ -314,21 +255,6 @@ public class SolrRouter extends RouteBuilder {
   }
 
   /**
-   * @return the fileAttributeProperties
-   */
-  public String getFileAttributeProperties() {
-    return fileAttributeProperties;
-  }
-
-  /**
-   * @param fileAttributeProperties
-   *          the fileAttributeProperties to set
-   */
-  public void setFileAttributeProperties(String fileAttributeProperties) {
-    this.fileAttributeProperties = fileAttributeProperties;
-  }
-
-  /**
    *
    * @return the acronym properties file
    */
@@ -362,6 +288,22 @@ public class SolrRouter extends RouteBuilder {
 
   /**
    *
+   * @return the file size
+   */
+  public String getAllowedFileSize() {
+    return allowedFileSize;
+  }
+
+  /**
+   *
+   * @param allowedFileSize
+   */
+  public void setAllowedFileSize(String allowedFileSize) {
+    this.allowedFileSize = allowedFileSize;
+  }
+
+  /**
+   *
    * @return the solrBaseUrl
    */
   public String getSolrBaseUrl() {
@@ -374,22 +316,6 @@ public class SolrRouter extends RouteBuilder {
    */
   public void setSolrBaseUrl(String solrBaseUrl) {
     this.solrBaseUrl = solrBaseUrl;
-  }
-
-  /**
-   *
-   * @return the localStorage
-   */
-  public String getLocalStorage() {
-    return localStorage;
-  }
-
-  /**
-   *
-   * @param localStorage
-   */
-  public void setLocalStorage(String localStorage) {
-    this.localStorage = localStorage;
   }
 
 }

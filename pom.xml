@@ -49,6 +49,12 @@
 		</dependency>
 		
 		<dependency>
+  			<groupId>org.apache.solr</groupId>
+  			<artifactId>solr-solrj</artifactId>
+ 			 <version>6.4.2</version>
+		</dependency>
+		
+		<dependency>
 			<groupId>org.apache.camel</groupId>
 			<artifactId>camel-http4</artifactId>
 			<version>${camel.version}</version>
