@@ -57,14 +57,15 @@ public class DrivePollEventProcessor implements Processor {
   final static String categories[] = { "policies", "reports", "guidelines", "links", "workplans", "minutes" };
 
   public DrivePollEventProcessor() {
-
   }
 
   public DrivePollEventProcessor(Map<String, String> config) {
     try {
       this.config = config;
       service = new GoogleDriveConnector(config).getDriveService();
-      client = new HttpSolrClient.Builder("http://" + config.get("solrBaseUrl")).build();
+      String solrPath = "https://" + config.get("solrBaseUrl");
+      log.debug(solrPath);
+      client = new HttpSolrClient.Builder(solrPath).build();
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -156,6 +157,7 @@ public class DrivePollEventProcessor implements Processor {
                         }
                       } else {
                         manageFileEvents(changeItem, sourcePath);
+                        log.debug("File Events");
                       }
 
                     } // End of published folder check
@@ -201,17 +203,30 @@ public class DrivePollEventProcessor implements Processor {
     String savedFilePath = null;
     String savedCheckSum = null;
     String savedFileName = null;
+    QueryResponse response = null;
+    log.debug("Id:" + changeItem.getId());
     SolrQuery query = new SolrQuery();
+    log.debug("Id2" + changeItem.getId());
     query.setQuery("id:" + changeItem.getId());
     query.setFields("storagePath,fileChecksum,title");
-
-    QueryResponse response = client.query(query);
+    try {
+      response = client.query(query);
+      log.debug(response);
+    } catch (IOException io) {
+      log.debug(io.getMessage());
+    } catch (SolrServerException so) {
+      log.debug(so.getMessage());
+    } catch (Exception e) {
+      log.debug(e.getMessage());
+    }
     SolrDocumentList results = response.getResults();
+    log.debug(results);
 
     if (!results.isEmpty()) {
       savedFilePath = (String) results.get(0).getFieldValue("storagePath");
       savedCheckSum = (String) results.get(0).getFieldValue("fileChecksum");
       savedFileName = (String) results.get(0).getFieldValue("title");
+      log.debug(savedFileName);
     }
 
     if (results == null || results.size() == 0) {
@@ -225,13 +240,13 @@ public class DrivePollEventProcessor implements Processor {
 
       // Checking for file content update
       if (!changeItem.getMd5Checksum().equals(savedCheckSum)) {
-        log.info("File update request");
+        log.debug("File update request");
         sendUpdateContentRequest(changeItem);
       }
 
       // Checking for file rename
       if (!savedFileName.equals(changeItem.getName())) {
-        log.info("File Rename request");
+        log.debug("File Rename request");
         sendFileRenameRequest(sourcePath, changeItem);
       }
 
