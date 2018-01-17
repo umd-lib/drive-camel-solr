@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>edu.umd.lib</groupId>
 	<artifactId>drive-camel-solr</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<version>0.7-SNAPSHOT</version>
 
 	<name>drive-camel-solr</name>
 	<packaging>bundle</packaging>
@@ -48,11 +48,18 @@
 			<version>${camel.version}</version>
 		</dependency>
 		
-		<dependency>
+		<!--dependency>
   			<groupId>org.apache.solr</groupId>
   			<artifactId>solr-solrj</artifactId>
  			 <version>6.4.2</version>
-		</dependency>
+		</dependency-->
+
+                <dependency>
+                 <groupId>org.apache.servicemix.bundles</groupId>
+                 <artifactId>org.apache.servicemix.bundles.solr-solrj</artifactId>
+               <version>7.2.0_1</version>
+</dependency>
+
 		
 		<dependency>
 			<groupId>org.apache.camel</groupId>
