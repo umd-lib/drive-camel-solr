@@ -66,8 +66,8 @@ public class SolrRouter extends RouteBuilder {
         .redeliveryDelay("{{camel.redelivery_delay}}")
         .backOffMultiplier("{{camel.backoff_multiplier}}")
         .useExponentialBackOff()
-        .maximumRedeliveryDelay("{{camel.maximum_redelivery_delay}}");
-    // .to("direct:send_error_email");
+        .maximumRedeliveryDelay("{{camel.maximum_redelivery_delay}}")
+        .to("direct:send_error_email");
 
     from("timer://runOnce?repeatCount=0&delay=5000&period=" + pollInterval)
         .to("direct:default.pollDrive");
@@ -189,7 +189,7 @@ public class SolrRouter extends RouteBuilder {
         .setHeader("From", simple("{{email.from}}"))
         .setHeader("To", simple("{{email.to}}"))
         .to("{{email.uri}}").doCatch(Exception.class)
-        .log("Error Occurred While Sending Email to specified to address.")
+        .log("Error Occurred While Sending Email to specified address.")
         .end();
 
   }

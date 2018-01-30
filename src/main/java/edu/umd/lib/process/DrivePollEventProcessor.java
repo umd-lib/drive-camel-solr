@@ -67,6 +67,7 @@ public class DrivePollEventProcessor implements Processor {
       log.debug(solrPath);
       client = new HttpSolrClient.Builder(solrPath).build();
     } catch (IOException e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
   }
@@ -75,7 +76,12 @@ public class DrivePollEventProcessor implements Processor {
   public void process(Exchange exchange) throws Exception {
 
     producer = exchange.getContext().createProducerTemplate();
-    poll();
+    if (service != null) {
+      poll();
+    } else {
+      log.info(
+          "Drive service has not been initialized. Please ensure that the Client Secret file exists and the Drive API has been enabled");
+    }
   }
 
   /**
@@ -156,8 +162,8 @@ public class DrivePollEventProcessor implements Processor {
                           // manageDirectoryEvents(changeItem, sourcePath);
                         }
                       } else {
-                        manageFileEvents(changeItem, sourcePath);
                         log.debug("File Events");
+                        manageFileEvents(changeItem, sourcePath);
                       }
 
                     } // End of published folder check
@@ -181,6 +187,7 @@ public class DrivePollEventProcessor implements Processor {
 
       }
     } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
 
@@ -194,12 +201,11 @@ public class DrivePollEventProcessor implements Processor {
    * @throws IOException
    * @throws SolrServerException
    */
-  public void manageFileEvents(File changeItem, String sourcePath) throws SolrServerException, IOException {
+  public void manageFileEvents(File changeItem, String sourcePath) {
 
     // Either its a new file download, file rename or a file
     // update request
 
-    // String storedFilePath = checkFileAttribute(changeItem.getId());
     String savedFilePath = null;
     String savedCheckSum = null;
     String savedFileName = null;
@@ -363,8 +369,13 @@ public class DrivePollEventProcessor implements Processor {
       }
     } catch (FileNotFoundException e) {
       log.error("Properties file not found" + e.getMessage());
+      e.printStackTrace();
     } catch (IOException e) {
       log.error("Properties file cannot be opened" + e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
     }
 
   }
@@ -383,10 +394,6 @@ public class DrivePollEventProcessor implements Processor {
   public void sendFileRenameRequest(String srcPath, File changedFile) {
 
     String fileName = changedFile.getName();
-
-    // String updatedFilePath = oldFilePath
-    // .replace(oldFilePath.substring(oldFilePath.lastIndexOf("/") + 1,
-    // oldFilePath.length()), fileName);
 
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "rename_file");
@@ -423,29 +430,30 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public void sendFileMoveRequest(File file, String srcPath) {
-    HashMap<String, String> headers = new HashMap<String, String>();
-    Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
-    Properties props = new Properties();
-
-    headers.put("action", "move_file");
-    headers.put("source_id", file.getId());
-    headers.put("storage_path", srcPath);
-
-    String paths[] = srcPath.split("/");
-    String teamDrive = paths[1];
-    headers.put("teamDrive", teamDrive);
-
-    // We have this condition to check if the file has been moved to another
-    // category. In that case, we need to update the category in Solr too.
-    if (paths.length > 3) {
-      for (String category : categories) {
-        if (paths[3].equals(category)) {
-          headers.put("category", category);
-        }
-      }
-    }
 
     try {
+      HashMap<String, String> headers = new HashMap<String, String>();
+      Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
+      Properties props = new Properties();
+
+      headers.put("action", "move_file");
+      headers.put("source_id", file.getId());
+      headers.put("storage_path", srcPath);
+
+      String paths[] = srcPath.split("/");
+      String teamDrive = paths[1];
+      headers.put("teamDrive", teamDrive);
+
+      // We have this condition to check if the file has been moved to another
+      // category. In that case, we need to update the category in Solr too.
+      if (paths.length > 3) {
+        for (String category : categories) {
+          if (paths[3].equals(category)) {
+            headers.put("category", category);
+          }
+        }
+      }
+
       if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
 
         FileInputStream in = new FileInputStream(acronymPropertiesFile.toFile());
@@ -461,12 +469,15 @@ public class DrivePollEventProcessor implements Processor {
         in.close();
       }
 
+      sendActionExchange(headers, "");
     } catch (IOException e) {
-
+      log.error(e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
 
-    sendActionExchange(headers, "");
   }
 
   /**
@@ -502,33 +513,39 @@ public class DrivePollEventProcessor implements Processor {
         TeamDriveList result = service.teamdrives().list()
             .setPageToken(pageToken)
             .execute();
+        if (result != null) {
+          List<TeamDrive> teamDrives = result.getTeamDrives();
+          log.debug("Number of Team Drives:" + teamDrives.size());
 
-        List<TeamDrive> teamDrives = result.getTeamDrives();
-        log.debug("Number of Team Drives:" + teamDrives.size());
+          for (TeamDrive teamDrive : teamDrives) {
+            log.debug("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
 
-        for (TeamDrive teamDrive : teamDrives) {
-          log.debug("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
+            File publishedFolder = accessPublishedFolder(teamDrive);
 
-          File publishedFolder = accessPublishedFolder(teamDrive);
+            if (publishedFolder != null) {
 
-          if (publishedFolder != null) {
+              accessPublishedFiles(publishedFolder, teamDrive);
+            }
 
-            accessPublishedFiles(publishedFolder, teamDrive);
+            StartPageToken response = service.changes().getStartPageToken()
+                .setSupportsTeamDrives(true)
+                .setTeamDriveId(teamDrive.getId())
+                .execute();
+
+            updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
           }
 
-          StartPageToken response = service.changes().getStartPageToken()
-              .setSupportsTeamDrives(true)
-              .setTeamDriveId(teamDrive.getId())
-              .execute();
-
-          updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
+          pageToken = result.getNextPageToken();
         }
-
-        pageToken = result.getNextPageToken();
       } while (pageToken != null);
     } catch (IOException e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     } catch (InterruptedException e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
   }
@@ -558,6 +575,10 @@ public class DrivePollEventProcessor implements Processor {
       }
 
     } catch (IOException e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
     return null;
@@ -606,8 +627,11 @@ public class DrivePollEventProcessor implements Processor {
         pageToken = list.getNextPageToken();
       } while (pageToken != null);
 
+    } catch (IOException e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
     } catch (Exception ex) {
-
+      log.error(ex.getMessage());
       ex.printStackTrace();
     }
   }
@@ -624,33 +648,33 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void sendNewFileRequest(File file, String path) {
 
-    HashMap<String, String> headers = new HashMap<String, String>();
+    try {
+      HashMap<String, String> headers = new HashMap<String, String>();
 
-    Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
-    Properties props = new Properties();
+      Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
+      Properties props = new Properties();
 
-    headers.put("action", "new_file");
-    headers.put("source_id", file.getId());
-    headers.put("source_name", file.getName());
-    headers.put("creation_time", file.getCreatedTime().toString());
-    headers.put("modified_time", file.getModifiedTime().toString());
-    headers.put("file_checksum", file.getMd5Checksum());
-    headers.put("storage_path", path);
+      headers.put("action", "new_file");
+      headers.put("source_id", file.getId());
+      headers.put("source_name", file.getName());
+      headers.put("creation_time", file.getCreatedTime().toString());
+      headers.put("modified_time", file.getModifiedTime().toString());
+      headers.put("file_checksum", file.getMd5Checksum());
+      headers.put("storage_path", path);
 
-    String paths[] = path.split("/");
-    String teamDrive = paths[1];
+      String paths[] = path.split("/");
+      String teamDrive = paths[1];
 
-    headers.put("teamDrive", teamDrive);
+      headers.put("teamDrive", teamDrive);
 
-    if (paths.length > 3) {
-      for (String category : categories) {
-        if (paths[3].equals(category)) {
-          headers.put("category", category);
+      if (paths.length > 3) {
+        for (String category : categories) {
+          if (paths[3].equals(category)) {
+            headers.put("category", category);
+          }
         }
       }
-    }
 
-    try {
       if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
 
         FileInputStream in = new FileInputStream(acronymPropertiesFile.toFile());
@@ -666,12 +690,15 @@ public class DrivePollEventProcessor implements Processor {
         in.close();
       }
 
-    } catch (IOException e) {
+      sendActionExchange(headers, "");
 
+    } catch (IOException e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
-
-    sendActionExchange(headers, "");
 
   }
 
@@ -762,6 +789,9 @@ public class DrivePollEventProcessor implements Processor {
       log.error("Properties file not found" + e.getMessage());
     } catch (IOException e) {
       log.error("Properties file cannot be opened" + e.getMessage());
+    } catch (Exception e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
     }
   }
 
@@ -799,6 +829,7 @@ public class DrivePollEventProcessor implements Processor {
         }
       }
     } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
 
@@ -857,6 +888,10 @@ public class DrivePollEventProcessor implements Processor {
     }
 
     catch (IOException e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
       e.printStackTrace();
     }
 
