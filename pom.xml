@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>edu.umd.lib</groupId>
 	<artifactId>drive-camel-solr</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<version>1.0.0</version>
 
 	<name>drive-camel-solr</name>
 	<packaging>bundle</packaging>
