@@ -7,6 +7,9 @@
         <!-- OSGI blueprint property placeholder -->
         <cm:property-placeholder id="properties" persistent-id="edu.umd.lib.drivesolrconnector" update-strategy="reload">
             <cm:default-properties>
+                <cm:property name="solr.router.protocol" value="https4" />
+                <cm:property name="solr.path.protocol" value="https" />
+
                 <cm:property name="solr.baseUrl" value="localhost:8983/solr/libi" />
                 <cm:property name="solr.commitWithin" value="10000" />
                 <cm:property name="error.maxRedeliveries" value="2" />

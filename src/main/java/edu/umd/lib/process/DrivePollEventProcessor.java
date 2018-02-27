@@ -63,7 +63,7 @@ public class DrivePollEventProcessor implements Processor {
     try {
       this.config = config;
       service = new GoogleDriveConnector(config).getDriveService();
-      String solrPath = "https://" + config.get("solrBaseUrl");
+      String solrPath = "{{solr.path.protocol}}://" + config.get("solrBaseUrl");
       log.debug(solrPath);
       client = new HttpSolrClient.Builder(solrPath).build();
     } catch (IOException e) {
@@ -657,16 +657,17 @@ public class DrivePollEventProcessor implements Processor {
       headers.put("action", "new_file");
       headers.put("source_id", file.getId());
       headers.put("source_name", file.getName());
-      headers.put("creation_time", file.getCreatedTime().toString());
       headers.put("modified_time", file.getModifiedTime().toString());
       headers.put("file_checksum", file.getMd5Checksum());
       headers.put("storage_path", path);
 
       String paths[] = path.split("/");
-      String teamDrive = paths[1];
 
+      // parse teamDrive
+      String teamDrive = paths[1];
       headers.put("teamDrive", teamDrive);
 
+      // parse category
       if (paths.length > 3) {
         for (String category : categories) {
           if (paths[3].equals(category)) {
@@ -674,6 +675,14 @@ public class DrivePollEventProcessor implements Processor {
           }
         }
       }
+
+      // parse creation time from path
+      String creation_time = Utilities.parseDate(path);
+      // parse creation time from file
+      if (creation_time == null) {
+        creation_time = file.getCreatedTime().toString();
+      }
+      headers.put("creation_time", creation_time);
 
       if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
 
