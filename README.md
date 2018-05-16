@@ -1,4 +1,4 @@
-# camel-solr
+# drive-solr
 
 Middleware to map documents from Google Team Drives to Solr using Camel.
 
