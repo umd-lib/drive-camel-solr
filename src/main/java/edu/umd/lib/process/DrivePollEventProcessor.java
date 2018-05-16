@@ -142,14 +142,15 @@ public class DrivePollEventProcessor implements Processor {
                   boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
 
                   if (!isGoogleDoc) {
-                    log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
 
                     String sourcePath = getSourcePath(changeItem);
-                    log.debug("Source Path of accessed file:" + sourcePath);
 
                     // We are interested only in the changes that occur inside
                     // the published folder
                     if ("published".equals(sourcePath.split("/")[2])) {
+
+                      log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
+                      log.info("Source Path of accessed file:" + sourcePath);
 
                       // Delete event
                       if (change.getRemoved() || changeItem.getTrashed()) {
