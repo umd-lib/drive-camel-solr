@@ -107,7 +107,7 @@ public class DriveNewFileProcessor extends AbstractSolrProcessor {
   public String parseToPlainText2(java.io.File file, String fileType) throws IOException, SAXException, TikaException {
 
     AutoDetectParser parser = new AutoDetectParser();
-    BodyContentHandler handler = new BodyContentHandler();
+    BodyContentHandler handler = new BodyContentHandler(-1);
     Metadata metadata = new Metadata();
     try {
 
