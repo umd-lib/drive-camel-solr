@@ -122,8 +122,8 @@ public class DrivePollEventProcessor implements Processor {
           for (TeamDrive teamDrive : teamDrives) {
 
             String pageToken = loadDriveChangesToken(teamDrive.getId());
+
             while (pageToken != null) {
-              loadAllFiles();
 
               log.info("Checking changes for Drive " + teamDrive.getName());
               ChangeList changes = service.changes().list(pageToken)
@@ -526,19 +526,18 @@ public class DrivePollEventProcessor implements Processor {
             if (publishedFolder != null) {
 
               accessPublishedFiles(publishedFolder, teamDrive);
-              StartPageToken response = service.changes().getStartPageToken()
-                  .setSupportsTeamDrives(true)
-                  .setTeamDriveId(teamDrive.getId())
-                  .execute();
-
-              updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
             }
 
+            StartPageToken response = service.changes().getStartPageToken()
+                .setSupportsTeamDrives(true)
+                .setTeamDriveId(teamDrive.getId())
+                .execute();
+
+            updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
           }
 
           pageToken = result.getNextPageToken();
         }
-
       } while (pageToken != null);
     } catch (IOException e) {
       log.error(e.getMessage());
