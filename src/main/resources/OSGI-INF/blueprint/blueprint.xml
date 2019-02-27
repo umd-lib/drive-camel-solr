@@ -8,6 +8,7 @@
         <cm:property-placeholder id="properties" persistent-id="edu.umd.lib.drivesolrconnector" update-strategy="reload">
             <cm:default-properties>
                 <cm:property name="solr.baseUrl" value="localhost:8983/solr/libi" />
+		<cm:property name="solr.scheme" value="http" />
                 <cm:property name="solr.commitWithin" value="10000" />
                 <cm:property name="error.maxRedeliveries" value="2" />
 
@@ -24,12 +25,12 @@
                 <cm:property name="email.to" value="" />
                 <cm:property name="email.uri" value="smtp://localhost:25" />
 
-                <cm:property name="drive.clientsecret" value="/path/to/client.json" />
+                <cm:property name="drive.clientsecret" value="/apps/path/to/client.json" />
                 <cm:property name="drive.app_user_name" value="Drive Integration" />
                 <cm:property name="drive.max_cache_entries" value="" />
-                <cm:property name="drive.token_properties" value="/tmp/googledrivetoken.properties" />
-                <cm:property name="drive.drive_acronym_properties" value="/tmp/driveacronym.properties" />
-                <cm:property name="drive.poll_interval" value="60s" />
+                <cm:property name="drive.token_properties" value="/apps/path/to/googledrivetoken.properties" />
+                <cm:property name="drive.drive_acronym_properties" value="/apps/path/to/driveacronym.properties" />
+                <cm:property name="drive.poll_interval" value="120s" />
                 <cm:property name="drive.allowed_filesize" value="1000000" />
             </cm:default-properties>
         </cm:property-placeholder>

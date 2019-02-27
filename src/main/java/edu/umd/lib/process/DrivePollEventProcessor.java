@@ -63,7 +63,7 @@ public class DrivePollEventProcessor implements Processor {
     try {
       this.config = config;
       service = new GoogleDriveConnector(config).getDriveService();
-      String solrPath = "https://" + config.get("solrBaseUrl");
+      String solrPath = config.get("solr.scheme") + "://" + config.get("solrBaseUrl");
       log.debug(solrPath);
       client = new HttpSolrClient.Builder(solrPath).build();
     } catch (IOException e) {
