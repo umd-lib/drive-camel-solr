@@ -40,7 +40,7 @@ import com.google.api.services.drive.model.TeamDriveList;
 
 import edu.umd.lib.services.GoogleDriveConnector;
 
-/****
+/**
  * Create a JSON to add the file to Solr. Connect to Drive and download the
  * whole file that needs to be indexed.
  *
@@ -48,7 +48,6 @@ import edu.umd.lib.services.GoogleDriveConnector;
  *
  */
 public class DrivePollEventProcessor implements Processor {
-
   private static Logger log = Logger.getLogger(DrivePollEventProcessor.class);
   Map<String, String> config;
   Drive service;
@@ -74,7 +73,6 @@ public class DrivePollEventProcessor implements Processor {
 
   @Override
   public void process(Exchange exchange) throws Exception {
-
     producer = exchange.getContext().createProducerTemplate();
     if (service != null) {
       poll();
@@ -91,20 +89,14 @@ public class DrivePollEventProcessor implements Processor {
    * @param service
    */
   public void poll() {
-
     Path tokenProperties = Paths.get(this.config.get("tokenProperties"));
     try {
       if (Files.notExists(tokenProperties) || Files.size(tokenProperties) == 0) {
-        //
         loadAllFiles();
-
-      } else
-
-      {
+      } else {
         // Fetch incremental changes i.e. changes that have occurred since the
         // last polling action
         String drivePageToken = null;
-
         do {
           TeamDriveList result = service.teamdrives().list()
               .setPageToken(drivePageToken)
@@ -203,10 +195,7 @@ public class DrivePollEventProcessor implements Processor {
    * @throws SolrServerException
    */
   public void manageFileEvents(File changeItem, String sourcePath) {
-
-    // Either its a new file download, file rename or a file
-    // update request
-
+    // Either its a new file download, file rename or a file update request
     String savedFilePath = null;
     String savedCheckSum = null;
     String savedFileName = null;
@@ -241,10 +230,6 @@ public class DrivePollEventProcessor implements Processor {
       log.info("New File request");
       sendNewFileRequest(changeItem, sourcePath);
     } else {
-
-      // Path file = Paths.get(storedFilePath);
-      // Path storedFileName = file.getFileName();
-
       // Checking for file content update
       if (!changeItem.getMd5Checksum().equals(savedCheckSum)) {
         log.debug("File update request");
@@ -284,13 +269,9 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void manageDeleteEvent(File changeItem, String sourcePath) {
     if ("application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
-
       log.info("Directory Delete request. Sending delete request for all files within the directory");
-
       List<File> files = fetchFileList(changeItem.getId());
-
       for (File file : files) {
-
         if (!"application/vnd.google-apps.folder".equals(file.getMimeType())) {
           sendDeleteRequest(file, getSourcePath(file));
         }
@@ -298,7 +279,6 @@ public class DrivePollEventProcessor implements Processor {
     }
 
     if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
-
       log.info("File Delete request");
       sendDeleteRequest(changeItem, sourcePath);
     }
@@ -312,7 +292,6 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public boolean chkIfGoogleDoc(String mimeType) {
-
     if (mimeType.equals("application/vnd.google-apps.document")
         || mimeType.equals("application/vnd.google-apps.spreadsheet")
         || mimeType.equals("application/vnd.google-apps.drawing")
@@ -393,7 +372,6 @@ public class DrivePollEventProcessor implements Processor {
    * @throws IOException
    */
   public void sendFileRenameRequest(String srcPath, File changedFile) {
-
     String fileName = changedFile.getName();
 
     HashMap<String, String> headers = new HashMap<String, String>();
@@ -414,7 +392,6 @@ public class DrivePollEventProcessor implements Processor {
    * @param sourcePath
    */
   public void sendDeleteRequest(File changeItem, String sourcePath) {
-
     HashMap<String, String> headers = new HashMap<String, String>();
 
     headers.put("action", "delete_file");
@@ -431,54 +408,9 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public void sendFileMoveRequest(File file, String srcPath) {
-
-    try {
-      HashMap<String, String> headers = new HashMap<String, String>();
-      Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
-      Properties props = new Properties();
-
-      headers.put("action", "move_file");
-      headers.put("source_id", file.getId());
-      headers.put("storage_path", srcPath);
-
-      String paths[] = srcPath.split("/");
-      String teamDrive = paths[1];
-      headers.put("teamDrive", teamDrive);
-
-      // We have this condition to check if the file has been moved to another
-      // category. In that case, we need to update the category in Solr too.
-      if (paths.length > 3) {
-        for (String category : categories) {
-          if (paths[3].equals(category)) {
-            headers.put("category", category);
-          }
-        }
-      }
-
-      if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
-
-        FileInputStream in = new FileInputStream(acronymPropertiesFile.toFile());
-        props.load(in);
-
-        String acronym = (String) props.get(teamDrive.replaceAll(" ", "_"));
-        if (acronym != null) {
-          headers.put("group", acronym);
-        } else {
-          log.info("Could not set the group name. Ensure that it exists in the properties file.");
-        }
-
-        in.close();
-      }
-
-      sendActionExchange(headers, "");
-    } catch (IOException e) {
-      log.error(e.getMessage());
-      e.printStackTrace();
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      e.printStackTrace();
-    }
-
+    HashMap<String, String> headers = new HashMap<String, String>();
+    headers.put("action", "move_file");
+    buildHeader(file, srcPath, headers);
   }
 
   /**
@@ -490,7 +422,6 @@ public class DrivePollEventProcessor implements Processor {
    * @throws JSONException
    */
   public void loadAllFiles() {
-
     log.info("First time connecting to Google Drive Account");
     log.info("Sending requests to load all published files into Solr...");
 
@@ -510,7 +441,6 @@ public class DrivePollEventProcessor implements Processor {
       }
 
       do {
-
         TeamDriveList result = service.teamdrives().list()
             .setPageToken(pageToken)
             .execute();
@@ -520,22 +450,16 @@ public class DrivePollEventProcessor implements Processor {
 
           for (TeamDrive teamDrive : teamDrives) {
             log.debug("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
-
             File publishedFolder = accessPublishedFolder(teamDrive);
-
             if (publishedFolder != null) {
-
               accessPublishedFiles(publishedFolder, teamDrive);
             }
-
             StartPageToken response = service.changes().getStartPageToken()
                 .setSupportsTeamDrives(true)
                 .setTeamDriveId(teamDrive.getId())
                 .execute();
-
             updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
           }
-
           pageToken = result.getNextPageToken();
         }
       } while (pageToken != null);
@@ -595,9 +519,7 @@ public class DrivePollEventProcessor implements Processor {
    * @throws JSONException
    */
   public void accessPublishedFiles(File file, TeamDrive teamDrive) {
-
     try {
-
       String query = "'" + file.getId() + "' in parents and trashed=false";
       String pageToken = null;
       do {
@@ -623,7 +545,6 @@ public class DrivePollEventProcessor implements Processor {
             if (!chkIfGoogleDoc(pubFile.getMimeType()))
               sendNewFileRequest(pubFile, path);
           }
-
         }
         pageToken = list.getNextPageToken();
       } while (pageToken != null);
@@ -648,59 +569,13 @@ public class DrivePollEventProcessor implements Processor {
    * @throws JSONException
    */
   public void sendNewFileRequest(File file, String path) {
-
-    try {
-      HashMap<String, String> headers = new HashMap<String, String>();
-
-      Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
-      Properties props = new Properties();
-
-      headers.put("action", "new_file");
-      headers.put("source_id", file.getId());
-      headers.put("source_name", file.getName());
-      headers.put("creation_time", file.getCreatedTime().toString());
-      headers.put("modified_time", file.getModifiedTime().toString());
-      headers.put("file_checksum", file.getMd5Checksum());
-      headers.put("storage_path", path);
-
-      String paths[] = path.split("/");
-      String teamDrive = paths[1];
-
-      headers.put("teamDrive", teamDrive);
-
-      if (paths.length > 3) {
-        for (String category : categories) {
-          if (paths[3].equals(category)) {
-            headers.put("category", category);
-          }
-        }
-      }
-
-      if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
-
-        FileInputStream in = new FileInputStream(acronymPropertiesFile.toFile());
-        props.load(in);
-
-        String acronym = (String) props.get(teamDrive.replaceAll(" ", "_"));
-        if (acronym != null) {
-          headers.put("group", acronym);
-        } else {
-          log.info("Could not set the group name. Ensure that it exists in the properties file.");
-        }
-
-        in.close();
-      }
-
-      sendActionExchange(headers, "");
-
-    } catch (IOException e) {
-      log.error(e.getMessage());
-      e.printStackTrace();
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      e.printStackTrace();
-    }
-
+    HashMap<String, String> headers = new HashMap<String, String>();
+    headers.put("action", "new_file");
+    headers.put("source_name", file.getName());
+    headers.put("creation_time", file.getCreatedTime().toString());
+    headers.put("modified_time", file.getModifiedTime().toString());
+    headers.put("file_checksum", file.getMd5Checksum());
+    buildHeader(file, path, headers);
   }
 
   /**
@@ -711,7 +586,6 @@ public class DrivePollEventProcessor implements Processor {
    * @param file
    */
   public void sendUpdateContentRequest(File file) {
-
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "update_file");
     headers.put("source_id", file.getId());
@@ -805,7 +679,6 @@ public class DrivePollEventProcessor implements Processor {
    * @throws IOException
    */
   public String getSourcePath(File item) {
-
     String itemName = item.getName();
     String parentID = item.getParents().get(0);
     Stack<String> path = new Stack<String>();
@@ -814,7 +687,6 @@ public class DrivePollEventProcessor implements Processor {
 
     try {
       while (true) {
-
         File parent = service.files().get(parentID)
             .setSupportsTeamDrives(true)
             .setFields("id,name,parents")
@@ -849,7 +721,6 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public List<File> fetchFileList(String fileId) {
-
     List<File> fullFilesList = new ArrayList<File>();
     String teamDriveId = null;
 
@@ -899,4 +770,86 @@ public class DrivePollEventProcessor implements Processor {
     return fullFilesList;
   }
 
+  /**
+   * Build headers when new file or move file
+   *
+   * @param file
+   * @param srcPath
+   * @param headers
+   * @return
+   */
+  public void buildHeader(File file, String srcPath, HashMap<String, String> headers) {
+    headers.put("source_id", file.getId());
+    headers.put("storage_path", srcPath);
+
+    String paths[] = srcPath.split("/");
+
+    if (paths.length > 1) {
+      String teamDrive = paths[1];
+      headers.put("teamDrive", teamDrive);
+      processAcronym(teamDrive, headers);
+    }
+
+    processCategory(paths, headers);
+
+    sendActionExchange(headers, "");
+  }
+
+  /**
+   * Process categories and sub-categories
+   *
+   * @param paths
+   * @param headers
+   * @return
+   *
+   */
+  public void processCategory(String[] paths, HashMap<String, String> headers) {
+    if (paths.length <= 3) {
+      return;
+    }
+    // paths = /SSDR/published/links/worksheets/abc.pdf
+    // category == paths[3] == links
+    for (String category : categories) {
+      if (paths[3].equals(category)) {
+        headers.put("category", category);
+        if (paths.length > 5) {
+          // sub_category == paths[4] == worksheets
+          String subCategory = paths[4].toLowerCase().replaceAll("[^a-z0-9]", "");
+          headers.put("sub_category", subCategory);
+        }
+      }
+    }
+  }
+
+  /**
+   * Process acronym name
+   *
+   * @param teamDrive
+   * @param headers
+   * @return
+   * @throws IOException
+   */
+  public void processAcronym(String teamDrive, HashMap<String, String> headers) {
+    try {
+      Properties props = new Properties();
+      Path acronymPropertiesFile = Paths.get(this.config.get("driveAcronymProperties"));
+      if (Files.exists(acronymPropertiesFile) && Files.size(acronymPropertiesFile) > 0) {
+        FileInputStream in = new FileInputStream(acronymPropertiesFile.toFile());
+        props.load(in);
+        String acronym = (String) props.get(teamDrive.replaceAll(" ", "_"));
+        if (acronym != null) {
+          headers.put("group", acronym);
+        } else {
+          log.info("Could not set the group name. Ensure that it exists in the properties file.");
+        }
+        in.close();
+      }
+    } catch (IOException e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
+    } catch (Exception e) {
+      log.error(e.getMessage());
+      e.printStackTrace();
+    }
+  }
 }
