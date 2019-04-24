@@ -19,6 +19,7 @@ public class SolrJsonGenerator {
     String group = exchange.getIn().getHeader("group", String.class);
     String teamDrive = exchange.getIn().getHeader("teamDrive", String.class);
     String category = exchange.getIn().getHeader("category", String.class);
+    String sub_category = exchange.getIn().getHeader("sub_category", String.class);
     String creationTime = exchange.getIn().getHeader("creation_time", String.class);
     String modifiedTime = exchange.getIn().getHeader("modified_time", String.class);
     String fileType = exchange.getIn().getHeader("file_type", String.class);
@@ -39,6 +40,7 @@ public class SolrJsonGenerator {
     json.put("fileContent", fileContent);
     json.put("type", fileType);
     json.put("category", category);
+    json.put("sub_category", sub_category);
     json.put("fileChecksum", fileChecksum);
     json.put("fileEncoded", encodedMsg);
     json.put("created", creationTime);
