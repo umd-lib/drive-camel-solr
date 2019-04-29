@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.json.JSONException;
 
+import com.google.api.client.util.DateTime;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Change;
 import com.google.api.services.drive.model.ChangeList;
@@ -54,6 +56,9 @@ public class DrivePollEventProcessor implements Processor {
   SolrClient client;
   ProducerTemplate producer;
   final static String categories[] = { "policies", "reports", "guidelines", "links", "workplans", "minutes" };
+  final static String PROP_MIME_TYPE_FOLDER = "application/vnd.google-apps.folder";
+  final static String PROP_TYPE_FILE = "FILES";
+  final static String PROP_TYPE_FOLDER = "FOLDERS";
 
   public DrivePollEventProcessor() {
   }
@@ -62,7 +67,7 @@ public class DrivePollEventProcessor implements Processor {
     try {
       this.config = config;
       service = new GoogleDriveConnector(config).getDriveService();
-      String solrPath = config.get("solr.scheme") + "://" + config.get("solrBaseUrl");
+      String solrPath = config.get("solrScheme") + "://" + config.get("solrBaseUrl");
       log.debug(solrPath);
       client = new HttpSolrClient.Builder(solrPath).build();
     } catch (IOException e) {
@@ -126,39 +131,31 @@ public class DrivePollEventProcessor implements Processor {
                   .setPageSize(100)
                   .execute();
 
+              String changesType = getChangesType(changes);
+
               for (Change change : changes.getChanges()) {
-
                 File changeItem = change.getFile();
-
                 if (changeItem != null) {
                   boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
-
                   if (!isGoogleDoc) {
-
                     String sourcePath = getSourcePath(changeItem);
-
                     // We are interested only in the changes that occur inside
                     // the published folder
                     if ("published".equals(sourcePath.split("/")[2])) {
-
                       log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
                       log.info("Source Path of accessed file:" + sourcePath);
-
                       // Delete event
                       if (change.getRemoved() || changeItem.getTrashed()) {
-
                         manageDeleteEvent(changeItem, sourcePath);
-                      } else if (changeItem.getMimeType().equals("application/vnd.google-apps.folder")) {
-                        if (!"published".equals(changeItem.getName())) {
-                          // TODO Need to figure out how to handle folder
-                          // rename/move event
-                          // manageDirectoryEvents(changeItem, sourcePath);
+                      } else if (changeItem.getMimeType().equals(PROP_MIME_TYPE_FOLDER)) {
+                        if (!"published".equals(changeItem.getName()) && PROP_TYPE_FOLDER.equals(changesType)) {
+                          log.debug("Folder Events");
+                          manageFolderEvents(changeItem, sourcePath);
                         }
                       } else {
                         log.debug("File Events");
                         manageFileEvents(changeItem, sourcePath);
                       }
-
                     } // End of published folder check
                   } // End of isGoogleDoc check
                 } // End of null check
@@ -187,6 +184,32 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   /**
+   * This method returns the changes type "Folder" or "File"
+   *
+   * @param changes
+   */
+  private String getChangesType(ChangeList changes) {
+    List<Change> changesList = changes.getChanges();
+    if (changesList == null) {
+      return null;
+    }
+
+    // if one changeItem is not Folder type, then return 'File'
+    for (Change change : changesList) {
+      File changeItem = change.getFile();
+      if (changeItem != null) {
+        String mimeType = changeItem.getMimeType();
+        if (!PROP_MIME_TYPE_FOLDER.equals(mimeType)) {
+          return PROP_TYPE_FILE;
+        }
+      }
+    }
+
+    // otherwise, return 'Folder'
+    return PROP_TYPE_FOLDER;
+  }
+
+  /**
    * This method handles all events related to file changes
    *
    * @param changeItem
@@ -196,13 +219,10 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void manageFileEvents(File changeItem, String sourcePath) {
     // Either its a new file download, file rename or a file update request
-    String savedFilePath = null;
-    String savedCheckSum = null;
-    String savedFileName = null;
     QueryResponse response = null;
     log.debug("Id:" + changeItem.getId());
+    log.debug("Name:" + changeItem.getName());
     SolrQuery query = new SolrQuery();
-    log.debug("Id2" + changeItem.getId());
     query.setQuery("id:" + changeItem.getId());
     query.setFields("storagePath,fileChecksum,title");
     try {
@@ -217,27 +237,31 @@ public class DrivePollEventProcessor implements Processor {
     }
     SolrDocumentList results = response.getResults();
     log.debug(results);
-
-    if (!results.isEmpty()) {
-      savedFilePath = (String) results.get(0).getFieldValue("storagePath");
-      savedCheckSum = (String) results.get(0).getFieldValue("fileChecksum");
-      savedFileName = (String) results.get(0).getFieldValue("title");
-      log.debug(savedFileName);
-    }
-
     if (results == null || results.size() == 0) {
       // New file download request
       log.info("New File request");
       sendNewFileRequest(changeItem, sourcePath);
     } else {
+      String savedFilePath = null;
+      String savedCheckSum = null;
+      String savedFileName = null;
+      if (!results.isEmpty()) {
+        savedFilePath = (String) results.get(0).getFieldValue("storagePath");
+        savedCheckSum = (String) results.get(0).getFieldValue("fileChecksum");
+        savedFileName = (String) results.get(0).getFieldValue("title");
+        log.debug(savedFilePath);
+        log.debug(savedCheckSum);
+        log.debug(savedFileName);
+      }
       // Checking for file content update
-      if (!changeItem.getMd5Checksum().equals(savedCheckSum)) {
+      String md5Checksum = changeItem.getMd5Checksum();
+      if (md5Checksum != null && !md5Checksum.equals(savedCheckSum)) {
         log.debug("File update request");
         sendUpdateContentRequest(changeItem);
       }
 
       // Checking for file rename
-      if (!savedFileName.equals(changeItem.getName())) {
+      if (savedFileName != null && !savedFileName.equals(changeItem.getName())) {
         log.debug("File Rename request");
         sendFileRenameRequest(sourcePath, changeItem);
       }
@@ -252,10 +276,9 @@ public class DrivePollEventProcessor implements Processor {
       // will be triggered even when the file rename occurs.
       String serverFilePath = sourcePath.substring(0, sourcePath.lastIndexOf("/"));
       String localFilePath = savedFilePath.substring(0, savedFilePath.lastIndexOf("/"));
-
       // Checking for file move request
       if (!serverFilePath.equals(localFilePath)) {
-        log.info("File Move request");
+        log.debug("File Move request");
         sendFileMoveRequest(changeItem, sourcePath);
       }
     }
@@ -268,19 +291,35 @@ public class DrivePollEventProcessor implements Processor {
    * @param sourcePath
    */
   public void manageDeleteEvent(File changeItem, String sourcePath) {
-    if ("application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+    if (PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
       log.info("Directory Delete request. Sending delete request for all files within the directory");
       List<File> files = fetchFileList(changeItem.getId());
       for (File file : files) {
-        if (!"application/vnd.google-apps.folder".equals(file.getMimeType())) {
+        if (!PROP_MIME_TYPE_FOLDER.equals(file.getMimeType())) {
           sendDeleteRequest(file, getSourcePath(file));
         }
       }
     }
 
-    if (!"application/vnd.google-apps.folder".equals(changeItem.getMimeType())) {
+    if (!PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
       log.info("File Delete request");
       sendDeleteRequest(changeItem, sourcePath);
+    }
+  }
+
+  /**
+   * This method handles the folder event for moving and renaming
+   *
+   * @param changeItem
+   * @param sourcePath
+   */
+  public void manageFolderEvents(File changeItem, String sourcePath) {
+    log.info("Directory Rename or Move request. Sending request for all files within the directory");
+    List<File> files = fetchFileList(changeItem.getId());
+    for (File file : files) {
+      if (!PROP_MIME_TYPE_FOLDER.equals(file.getMimeType())) {
+        manageFileEvents(file, getSourcePath(file));
+      }
     }
   }
 
@@ -379,7 +418,12 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("source_id", changedFile.getId());
     headers.put("source_name", fileName);
     headers.put("storage_path", srcPath);
-    headers.put("modified_time", changedFile.getModifiedTime().toString());
+    DateTime modifiedTime = changedFile.getModifiedTime();
+    if (modifiedTime == null) {
+      modifiedTime = new DateTime(new Date());
+    }
+    String modified_time = modifiedTime.toString();
+    headers.put("modified_time", modified_time);
     sendActionExchange(headers, "");
   }
 
@@ -539,7 +583,7 @@ public class DrivePollEventProcessor implements Processor {
           log.debug("File Name:" + pubFile.getName());
           log.debug("Mime type:" + pubFile.getMimeType());
           String path = getSourcePath(pubFile);
-          if ("application/vnd.google-apps.folder".equals(pubFile.getMimeType())) {
+          if (PROP_MIME_TYPE_FOLDER.equals(pubFile.getMimeType())) {
             accessPublishedFiles(pubFile, teamDrive);
           } else {
             if (!chkIfGoogleDoc(pubFile.getMimeType()))
@@ -572,8 +616,19 @@ public class DrivePollEventProcessor implements Processor {
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "new_file");
     headers.put("source_name", file.getName());
-    headers.put("creation_time", file.getCreatedTime().toString());
-    headers.put("modified_time", file.getModifiedTime().toString());
+
+    DateTime creationTime = file.getCreatedTime();
+    if (creationTime == null) {
+      creationTime = new DateTime(new Date());
+    }
+    headers.put("creation_time", creationTime.toString());
+
+    DateTime modifiedTime = file.getModifiedTime();
+    if (modifiedTime == null) {
+      modifiedTime = new DateTime(new Date());
+    }
+    headers.put("modified_time", modifiedTime.toString());
+
     headers.put("file_checksum", file.getMd5Checksum());
     buildHeader(file, path, headers);
   }
@@ -590,7 +645,11 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("action", "update_file");
     headers.put("source_id", file.getId());
     headers.put("file_checksum", file.getMd5Checksum());
-    headers.put("modified_time", file.getModifiedTime().toString());
+    DateTime modifiedTime = file.getModifiedTime();
+    if (modifiedTime == null) {
+      modifiedTime = new DateTime(new Date());
+    }
+    headers.put("modified_time", modifiedTime.toString());
 
     sendActionExchange(headers, "");
   }
@@ -651,7 +710,6 @@ public class DrivePollEventProcessor implements Processor {
   public void updateDriveChangesToken(String teamDriveId, String driveToken) {
     try {
       String propFilePath = this.config.get("tokenProperties");
-
       FileInputStream in = new FileInputStream(propFilePath);
       Properties props = new Properties();
       props.load(in);
@@ -747,7 +805,7 @@ public class DrivePollEventProcessor implements Processor {
         List<File> fileList = list.getFiles();
 
         for (File f : fileList) {
-          if ("application/vnd.google-apps.folder".equals(f.getMimeType())) {
+          if (PROP_MIME_TYPE_FOLDER.equals(f.getMimeType())) {
             fullFilesList.addAll(fetchFileList(f.getId()));
           } else {
             fullFilesList.add(f);
@@ -812,9 +870,12 @@ public class DrivePollEventProcessor implements Processor {
     for (String category : categories) {
       if (paths[3].equals(category)) {
         headers.put("category", category);
+        // log.info("Category=" + category);
+        // log.info(paths.length);
         if (paths.length > 5) {
           // sub_category == paths[4] == worksheets
           String subCategory = paths[4].toLowerCase().replaceAll("[^a-z0-9]", "");
+          // log.info("SubCategory=" + subCategory);
           headers.put("sub_category", subCategory);
         }
       }
