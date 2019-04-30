@@ -18,7 +18,6 @@ public class DriveFileMoveProcessor extends AbstractSolrProcessor {
 
   @Override
   String generateMessage(Exchange exchange) throws Exception {
-    // TODO Auto-generated method stub
     String messageBody = SolrJsonGenerator.moveFileJson(exchange);
     return messageBody;
   }

@@ -45,7 +45,6 @@ public class GoogleDriveConnector {
    */
 
   public GoogleDriveConnector(Map<String, String> config) {
-
     this.appName = config.get("appName");
     this.clientSecretFileName = config.get("clientSecretFile");
   }
@@ -62,14 +61,10 @@ public class GoogleDriveConnector {
         HTTP_TRANSPORT, JSON_FACTORY, credential).setHttpRequestInitializer(new HttpRequestInitializer() {
           @Override
           public void initialize(HttpRequest request) throws IOException {
-
             credential.initialize(request);
             request.setConnectTimeout(3 * 60000); // 3 minutes connect timeout
-                                                  
             request.setReadTimeout(3 * 60000); // 3 minutes read timeout
-
           }
-
         }).setApplicationName(this.appName).build();
   }
 

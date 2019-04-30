@@ -31,14 +31,13 @@ import org.apache.solr.common.SolrDocumentList;
 import org.json.JSONException;
 
 import com.google.api.client.util.DateTime;
-import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Change;
 import com.google.api.services.drive.model.ChangeList;
+import com.google.api.services.drive.model.Drive;
+import com.google.api.services.drive.model.DriveList;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 import com.google.api.services.drive.model.StartPageToken;
-import com.google.api.services.drive.model.TeamDrive;
-import com.google.api.services.drive.model.TeamDriveList;
 
 import edu.umd.lib.services.GoogleDriveConnector;
 
@@ -52,7 +51,7 @@ import edu.umd.lib.services.GoogleDriveConnector;
 public class DrivePollEventProcessor implements Processor {
   private static Logger log = Logger.getLogger(DrivePollEventProcessor.class);
   Map<String, String> config;
-  Drive service;
+  com.google.api.services.drive.Drive service;
   SolrClient client;
   ProducerTemplate producer;
   final static String categories[] = { "policies", "reports", "guidelines", "links", "workplans", "minutes" };
@@ -103,12 +102,12 @@ public class DrivePollEventProcessor implements Processor {
         // last polling action
         String drivePageToken = null;
         do {
-          TeamDriveList result = service.teamdrives().list()
+          DriveList result = service.drives().list()
               .setPageToken(drivePageToken)
               .setPageSize(100)
               .execute();
 
-          List<TeamDrive> teamDrives = result.getTeamDrives();
+          List<Drive> teamDrives = result.getDrives();
           log.debug("Number of Team Drives:" + teamDrives.size());
 
           // Checking for the addition of a new Team Drive. If a new team drive
@@ -116,7 +115,7 @@ public class DrivePollEventProcessor implements Processor {
           // inside the published folder
           checkForNewTeamDrives(teamDrives, tokenProperties);
 
-          for (TeamDrive teamDrive : teamDrives) {
+          for (Drive teamDrive : teamDrives) {
 
             String pageToken = loadDriveChangesToken(teamDrive.getId());
 
@@ -125,9 +124,9 @@ public class DrivePollEventProcessor implements Processor {
               log.info("Checking changes for Drive " + teamDrive.getName());
               ChangeList changes = service.changes().list(pageToken)
                   .setFields("changes,nextPageToken,newStartPageToken")
-                  .setIncludeTeamDriveItems(true)
-                  .setSupportsTeamDrives(true)
-                  .setTeamDriveId(teamDrive.getId())
+                  .setIncludeItemsFromAllDrives(true)
+                  .setSupportsAllDrives(true)
+                  .setDriveId(teamDrive.getId())
                   .setPageSize(100)
                   .execute();
 
@@ -349,12 +348,12 @@ public class DrivePollEventProcessor implements Processor {
    * adds the token for the new drive in the properties file.
    *
    * @param service
-   * @param teamDriveList
+   * @param teamDrives
    * @param tokenProperties
    * @throws JSONException
    */
 
-  public void checkForNewTeamDrives(List<TeamDrive> teamDriveList, Path tokenProperties) {
+  public void checkForNewTeamDrives(List<Drive> teamDrives, Path tokenProperties) {
     try {
       if (Files.exists(tokenProperties) && !Files.isDirectory(tokenProperties)) {
         Properties props = new Properties();
@@ -362,8 +361,8 @@ public class DrivePollEventProcessor implements Processor {
         props.load(in);
         in.close();
 
-        if (teamDriveList.size() > props.size()) {
-          for (TeamDrive teamDrive : teamDriveList) {
+        if (teamDrives.size() > props.size()) {
+          for (Drive teamDrive : teamDrives) {
             if (!props.containsKey("drivetoken_" + teamDrive.getId())) {
               log.info("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
 
@@ -373,8 +372,8 @@ public class DrivePollEventProcessor implements Processor {
                 accessPublishedFiles(publishedFolder, teamDrive);
 
                 StartPageToken response = service.changes().getStartPageToken()
-                    .setSupportsTeamDrives(true)
-                    .setTeamDriveId(teamDrive.getId())
+                    .setSupportsAllDrives(true)
+                    .setDriveId(teamDrive.getId())
                     .execute();
 
                 updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
@@ -485,22 +484,22 @@ public class DrivePollEventProcessor implements Processor {
       }
 
       do {
-        TeamDriveList result = service.teamdrives().list()
+        DriveList result = service.drives().list()
             .setPageToken(pageToken)
             .execute();
         if (result != null) {
-          List<TeamDrive> teamDrives = result.getTeamDrives();
+          List<Drive> teamDrives = result.getDrives();
           log.debug("Number of Team Drives:" + teamDrives.size());
 
-          for (TeamDrive teamDrive : teamDrives) {
+          for (Drive teamDrive : teamDrives) {
             log.debug("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
             File publishedFolder = accessPublishedFolder(teamDrive);
             if (publishedFolder != null) {
               accessPublishedFiles(publishedFolder, teamDrive);
             }
             StartPageToken response = service.changes().getStartPageToken()
-                .setSupportsTeamDrives(true)
-                .setTeamDriveId(teamDrive.getId())
+                .setSupportsAllDrives(true)
+                .setDriveId(teamDrive.getId())
                 .execute();
             updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
           }
@@ -526,14 +525,14 @@ public class DrivePollEventProcessor implements Processor {
    * @param teamDrive
    * @return the published folder for a team drive, if it exists
    */
-  public File accessPublishedFolder(TeamDrive teamDrive) {
+  public File accessPublishedFolder(Drive teamDrive) {
     try {
       FileList list = service.files().list()
-          .setTeamDriveId(teamDrive.getId())
-          .setSupportsTeamDrives(true)
-          .setCorpora("teamDrive")
+          .setDriveId(teamDrive.getId())
+          .setSupportsAllDrives(true)
+          .setCorpora("drive")
           .setFields("files(id,name,parents)")
-          .setIncludeTeamDriveItems(true)
+          .setIncludeItemsFromAllDrives(true)
           .setQ("mimeType='application/vnd.google-apps.folder' and name='published' and trashed=false")
           .execute();
 
@@ -562,7 +561,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param tdteamDrive
    * @throws JSONException
    */
-  public void accessPublishedFiles(File file, TeamDrive teamDrive) {
+  public void accessPublishedFiles(File file, Drive teamDrive) {
     try {
       String query = "'" + file.getId() + "' in parents and trashed=false";
       String pageToken = null;
@@ -570,10 +569,10 @@ public class DrivePollEventProcessor implements Processor {
         FileList list = service.files().list()
             .setQ(query)
             .setFields("nextPageToken,files(id,name,mimeType,parents,createdTime,modifiedTime,md5Checksum)")
-            .setCorpora("teamDrive")
-            .setIncludeTeamDriveItems(true)
-            .setSupportsTeamDrives(true)
-            .setTeamDriveId(teamDrive.getId())
+            .setCorpora("drive")
+            .setIncludeItemsFromAllDrives(true)
+            .setSupportsAllDrives(true)
+            .setDriveId(teamDrive.getId())
             .setPageToken(pageToken)
             .execute();
 
@@ -746,12 +745,12 @@ public class DrivePollEventProcessor implements Processor {
     try {
       while (true) {
         File parent = service.files().get(parentID)
-            .setSupportsTeamDrives(true)
+            .setSupportsAllDrives(true)
             .setFields("id,name,parents")
             .execute();
 
         if (parent.getParents() == null) {
-          String teamDriveName = service.teamdrives().get(parent.getId()).execute().getName();
+          String teamDriveName = service.drives().get(parent.getId()).execute().getName();
           path.push(teamDriveName);
           break;
         } else {
@@ -784,8 +783,8 @@ public class DrivePollEventProcessor implements Processor {
 
     try {
       teamDriveId = service.files().get(fileId)
-          .setSupportsTeamDrives(true)
-          .execute().getTeamDriveId();
+          .setSupportsAllDrives(true)
+          .execute().getDriveId();
 
       log.debug("Team DriveId:" + teamDriveId);
       String query = "'" + fileId + "' in parents and trashed=false";
@@ -794,10 +793,10 @@ public class DrivePollEventProcessor implements Processor {
         FileList list = service.files().list()
             .setQ(query)
             .setFields("nextPageToken,files(id,name,mimeType,parents)")
-            .setCorpora("teamDrive")
-            .setIncludeTeamDriveItems(true)
-            .setSupportsTeamDrives(true)
-            .setTeamDriveId(teamDriveId)
+            .setCorpora("drive")
+            .setIncludeItemsFromAllDrives(true)
+            .setSupportsAllDrives(true)
+            .setDriveId(teamDriveId)
             .setPageToken(pageToken)
             .setPageSize(50)
             .execute();
