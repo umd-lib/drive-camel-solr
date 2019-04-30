@@ -30,6 +30,7 @@ public class SolrRouter extends RouteBuilder {
   private String tokenProperties;
   private String pollInterval;
   private String allowedFileSize;
+  private String solrScheme;
   private String solrBaseUrl;
   private String driveAcronymProperties;
 
@@ -52,6 +53,7 @@ public class SolrRouter extends RouteBuilder {
     config.put("maxCacheTries", maxCacheTries);
     config.put("tokenProperties", tokenProperties);
     config.put("driveAcronymProperties", driveAcronymProperties);
+    config.put("solrScheme", solrScheme);
     config.put("solrBaseUrl", solrBaseUrl);
     config.put("allowedFileSize", allowedFileSize);
 
@@ -300,6 +302,22 @@ public class SolrRouter extends RouteBuilder {
    */
   public void setAllowedFileSize(String allowedFileSize) {
     this.allowedFileSize = allowedFileSize;
+  }
+
+  /**
+   *
+   * @return the solrScheme
+   */
+  public String getSolrScheme() {
+    return solrScheme;
+  }
+
+  /**
+   *
+   * @param solrScheme
+   */
+  public void setSolrScheme(String solrScheme) {
+    this.solrScheme = solrScheme;
   }
 
   /**

@@ -10,7 +10,6 @@ public class SolrJsonGenerator {
   private static Logger log = Logger.getLogger(SolrJsonGenerator.class);
 
   public SolrJsonGenerator() {
-
   }
 
   public static String newFileJson(Exchange exchange, String encodedMsg, String fileContent) throws JSONException {
@@ -60,7 +59,6 @@ public class SolrJsonGenerator {
   }
 
   public static String renameFileJson(Exchange exchange) throws JSONException {
-
     JSONObject json = new JSONObject();
 
     json.put("id", exchange.getIn().getHeader("source_id", String.class));
@@ -88,6 +86,9 @@ public class SolrJsonGenerator {
 
     JSONObject categoryObj = new JSONObject();
     json.put("category", categoryObj.put("set", exchange.getIn().getHeader("category", String.class)));
+
+    JSONObject subCategoryObj = new JSONObject();
+    json.put("sub_category", subCategoryObj.put("set", exchange.getIn().getHeader("sub_category", String.class)));
 
     JSONObject groupObj = new JSONObject();
     json.put("group", groupObj.put("set", exchange.getIn().getHeader("group", String.class)));
@@ -119,5 +120,4 @@ public class SolrJsonGenerator {
     String messageBody = "{'add':{'doc':" + json.toString() + "}}";
     return messageBody;
   }
-
 }
