@@ -38,7 +38,6 @@ public class DriveNewFileProcessor extends AbstractSolrProcessor {
   private Map<String, String> config;
 
   public DriveNewFileProcessor(Map<String, String> config) {
-
     this.config = config;
   }
 
@@ -51,7 +50,7 @@ public class DriveNewFileProcessor extends AbstractSolrProcessor {
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
     File file = service.files().get(sourceID)
         .setFields("name,mimeType,size")
-        .setSupportsTeamDrives(true)
+        .setSupportsAllDrives(true)
         .execute();
     String sourceMimeType = file.getMimeType();
     String fileName = file.getName();

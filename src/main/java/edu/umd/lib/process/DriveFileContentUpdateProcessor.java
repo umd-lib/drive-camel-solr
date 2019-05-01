@@ -46,7 +46,7 @@ public class DriveFileContentUpdateProcessor extends AbstractSolrProcessor {
     String sourceID = exchange.getIn().getHeader("source_id", String.class);
     File file = service.files().get(sourceID)
         .setFields("name,mimeType,size")
-        .setSupportsTeamDrives(true)
+        .setSupportsAllDrives(true)
         .execute();
     String sourceMimeType = file.getMimeType();
     String fileName = file.getName();
