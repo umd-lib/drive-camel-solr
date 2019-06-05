@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0" xsi:schemaLocation="
+       http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0 http://aries.apache.org/schemas/blueprint-cm/blueprint-cm-1.1.0.xsd
+       http://www.osgi.org/xmlns/blueprint/v1.0.0 http://www.osgi.org/xmlns/blueprint/v1.0.0/blueprint.xsd
+       http://camel.apache.org/schema/blueprint http://camel.apache.org/schema/blueprint/camel-blueprint.xsd">
+
+        <!-- OSGI blueprint property placeholder -->
+        <cm:property-placeholder id="properties" persistent-id="edu.umd.lib.drivesolrconnector" update-strategy="reload">
+            <cm:default-properties>
+                <cm:property name="solr.baseUrl" value="localhost:8983/solr/libi" />
+                <cm:property name="solr.scheme" value="http" />
+                <cm:property name="solr.commitWithin" value="10000" />
+                <cm:property name="error.maxRedeliveries" value="2" />
+
+                <cm:property name="drive.routeName" value="drive" />
+                <cm:property name="drive.serviceName" value="drive-listener" />
+                <cm:property name="default.domain" value="http://localhost:8080/" />
+
+                <cm:property name="camel.maximum_tries" value="3" />
+                <cm:property name="camel.redelivery_delay" value="1000" />
+                <cm:property name="camel.backoff_multiplier" value="2" />
+                <cm:property name="camel.maximum_redelivery_delay" value="6000" />
+
+                <cm:property name="email.from" value="" />
+                <cm:property name="email.to" value="" />
+                <cm:property name="email.uri" value="smtp://localhost:25" />
+
+                <cm:property name="drive.clientsecret" value="/apps/path/to/client.json" />
+                <cm:property name="drive.app_user_name" value="Drive Integration" />
+                <cm:property name="drive.max_cache_entries" value="" />
+                <cm:property name="drive.token_properties" value="/apps/path/to/googledrivetoken.properties" />
+                <cm:property name="drive.drive_acronym_properties" value="/apps/path/to/driveacronym.properties" />
+                <cm:property name="drive.poll_interval" value="120s" />
+                <cm:property name="drive.allowed_filesize" value="1000000" />
+            </cm:default-properties>
+        </cm:property-placeholder>
+
+        <bean id="smtp" class="org.apache.camel.component.mail.MailComponent" />
+
+        <bean id="SolrRouter" class="edu.umd.lib.routes.SolrRouter">
+            <property name="clientSecret" value="${drive.clientsecret}" />
+            <property name="appUserName" value="${drive.app_user_name}" />
+            <property name="maxCacheTries" value="${drive.max_cache_entries}" />
+            <property name="tokenProperties" value="${drive.token_properties}" />
+            <property name="driveAcronymProperties" value="${drive.drive_acronym_properties}" />
+            <property name="pollInterval" value="${drive.poll_interval}" />
+            <property name="allowedFileSize" value="${drive.allowed_filesize}" />
+            <property name="solrBaseUrl" value="${solr.baseUrl}" />
+            <property name="solrScheme" value="${solr.scheme}" />
+        </bean>
+
+        <camelContext id="SolrConnectorCamel" xmlns="http://camel.apache.org/schema/blueprint">
+            <propertyPlaceholder id="placeholder" location="edu.umd.lib.drivesolrconnector.cfg" />
+            <routeBuilder ref="SolrRouter" />
+        </camelContext>
+        
+    </blueprint>
