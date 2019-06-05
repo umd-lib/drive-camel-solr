@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Stack;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
@@ -171,6 +172,7 @@ public class DrivePollEventProcessor implements Processor {
               pageToken = changes.getNextPageToken();
 
             }
+            TimeUnit.SECONDS.sleep(3);
           }
           drivePageToken = result.getNextPageToken();
         } while (drivePageToken != null);
@@ -413,7 +415,7 @@ public class DrivePollEventProcessor implements Processor {
   public void sendFileRenameRequest(String srcPath, File changedFile) {
     String fileName = changedFile.getName();
 
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "rename_file");
     headers.put("source_id", changedFile.getId());
     headers.put("source_name", fileName);
@@ -436,7 +438,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param sourcePath
    */
   public void sendDeleteRequest(File changeItem, String sourcePath) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
 
     headers.put("action", "delete_file");
     headers.put("source_id", changeItem.getId());
@@ -452,7 +454,7 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public void sendFileMoveRequest(File file, String srcPath) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "move_file");
     buildHeader(file, srcPath, headers);
   }
@@ -503,6 +505,7 @@ public class DrivePollEventProcessor implements Processor {
                 .setTeamDriveId(teamDrive.getId())
                 .execute();
             updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
+            TimeUnit.SECONDS.sleep(3);
           }
           pageToken = result.getNextPageToken();
         }
@@ -613,7 +616,7 @@ public class DrivePollEventProcessor implements Processor {
    * @throws JSONException
    */
   public void sendNewFileRequest(File file, String path) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "new_file");
     headers.put("source_name", file.getName());
 
@@ -641,7 +644,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param file
    */
   public void sendUpdateContentRequest(File file) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "update_file");
     headers.put("source_id", file.getId());
     headers.put("file_checksum", file.getMd5Checksum());
@@ -739,7 +742,7 @@ public class DrivePollEventProcessor implements Processor {
   public String getSourcePath(File item) {
     String itemName = item.getName();
     String parentID = item.getParents().get(0);
-    Stack<String> path = new Stack<String>();
+    Stack<String> path = new Stack<>();
     StringBuilder fullPathBuilder = new StringBuilder();
     path.push(itemName);
 
@@ -779,7 +782,7 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public List<File> fetchFileList(String fileId) {
-    List<File> fullFilesList = new ArrayList<File>();
+    List<File> fullFilesList = new ArrayList<>();
     String teamDriveId = null;
 
     try {
