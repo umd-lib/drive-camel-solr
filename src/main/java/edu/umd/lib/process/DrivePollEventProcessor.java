@@ -912,7 +912,7 @@ public class DrivePollEventProcessor implements Processor {
         // log.info(paths.length);
         if (paths.length > 5) {
           // sub_category == paths[4] == worksheets
-          String subCategory = paths[4].toLowerCase().replaceAll("[^a-z0-9]", "");
+          String subCategory = paths[4].toLowerCase().replaceAll("[^A-Za-z0-9 _]", "");
           // log.info("SubCategory=" + subCategory);
           headers.put("sub_category", subCategory);
         }
