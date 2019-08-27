@@ -157,6 +157,8 @@ public class DrivePollEventProcessor implements Processor {
                         log.debug("File Events");
                         manageFileEvents(changeItem, sourcePath);
                       }
+                    } else {
+                      managePublishedMoveEvent(changeItem, sourcePath);
                     } // End of published folder check
                   } // End of isGoogleDoc check
                 } // End of null check
@@ -212,20 +214,19 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   /**
-   * This method handles all events related to file changes
+   * Check if id exists in Solr and return results
    *
-   * @param changeItem
-   * @param sourcePath
-   * @throws IOException
+   * @param id
+   * @param name
    * @throws SolrServerException
+   * @return results
    */
-  public void manageFileEvents(File changeItem, String sourcePath) {
-    // Either its a new file download, file rename or a file update request
+  private SolrDocumentList solrExistsQuery(String id) {
+    String queryString = "id:" + id;
     QueryResponse response = null;
-    log.debug("Id:" + changeItem.getId());
-    log.debug("Name:" + changeItem.getName());
+    log.debug("solrExistsQuery: query = " + queryString);
     SolrQuery query = new SolrQuery();
-    query.setQuery("id:" + changeItem.getId());
+    query.setQuery(queryString);
     query.setFields("storagePath,fileChecksum,title");
     try {
       response = client.query(query);
@@ -237,11 +238,45 @@ public class DrivePollEventProcessor implements Processor {
     } catch (Exception e) {
       log.debug(e.getMessage());
     }
-    SolrDocumentList results = response.getResults();
+    return response.getResults();
+  }
+
+  /**
+   * In the event a file was published but has since been moved outside of
+   * published, it should be treated as a deletion.
+   *
+   * @param changeItem
+   * @param sourcePath
+   */
+  public void managePublishedMoveEvent(File changeItem, String sourcePath) {
+    SolrDocumentList results = solrExistsQuery(changeItem.getId());
+    log.debug(results);
+    // Verify this file exists in Libi. Otherwise, ignore.
+    if (results == null || results.size() == 0) {
+      // This file is not in Libi, return.
+      log.info("managePublishedMoveEvent: File not currently in Libi");
+      return;
+    }
+    // If a file is in libi but no longer published, it needs to be deleted from
+    // index
+    manageDeleteEvent(changeItem, sourcePath);
+  }
+
+  /**
+   * This method handles all events related to file changes
+   *
+   * @param changeItem
+   * @param sourcePath
+   * @throws IOException
+   * @throws SolrServerException
+   */
+  public void manageFileEvents(File changeItem, String sourcePath) {
+    log.debug("manageFileEvents: Name = " + changeItem.getName());
+    SolrDocumentList results = solrExistsQuery(changeItem.getId());
     log.debug(results);
     if (results == null || results.size() == 0) {
       // New file download request
-      log.info("New File request");
+      log.info("manageFileEvents: New File request");
       sendNewFileRequest(changeItem, sourcePath);
     } else {
       String savedFilePath = null;
@@ -258,13 +293,13 @@ public class DrivePollEventProcessor implements Processor {
       // Checking for file content update
       String md5Checksum = changeItem.getMd5Checksum();
       if (md5Checksum != null && !md5Checksum.equals(savedCheckSum)) {
-        log.debug("File update request");
+        log.debug("manageFileEvents: File update request");
         sendUpdateContentRequest(changeItem);
       }
 
       // Checking for file rename
       if (savedFileName != null && !savedFileName.equals(changeItem.getName())) {
-        log.debug("File Rename request");
+        log.debug("manageFileEvents: File Rename request");
         sendFileRenameRequest(sourcePath, changeItem);
       }
 
@@ -280,7 +315,7 @@ public class DrivePollEventProcessor implements Processor {
       String localFilePath = savedFilePath.substring(0, savedFilePath.lastIndexOf("/"));
       // Checking for file move request
       if (!serverFilePath.equals(localFilePath)) {
-        log.debug("File Move request");
+        log.debug("manageFileEvents: File Move request");
         sendFileMoveRequest(changeItem, sourcePath);
       }
     }
@@ -294,7 +329,7 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void manageDeleteEvent(File changeItem, String sourcePath) {
     if (PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
-      log.info("Directory Delete request. Sending delete request for all files within the directory");
+      log.info("manageDeleteEvent: Directory Delete request.");
       List<File> files = fetchFileList(changeItem.getId());
       for (File file : files) {
         if (!PROP_MIME_TYPE_FOLDER.equals(file.getMimeType())) {
@@ -304,7 +339,7 @@ public class DrivePollEventProcessor implements Processor {
     }
 
     if (!PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
-      log.info("File Delete request");
+      log.info("manageDeleteEvent: File Delete request");
       sendDeleteRequest(changeItem, sourcePath);
     }
   }
@@ -877,7 +912,7 @@ public class DrivePollEventProcessor implements Processor {
         // log.info(paths.length);
         if (paths.length > 5) {
           // sub_category == paths[4] == worksheets
-          String subCategory = paths[4].toLowerCase().replaceAll("[^a-z0-9]", "");
+          String subCategory = paths[4].toLowerCase().replaceAll("[^A-Za-z0-9 _]", "");
           // log.info("SubCategory=" + subCategory);
           headers.put("sub_category", subCategory);
         }
