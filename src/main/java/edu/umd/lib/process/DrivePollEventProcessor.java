@@ -100,6 +100,8 @@ public class DrivePollEventProcessor implements Processor {
       } else {
         // Fetch incremental changes i.e. changes that have occurred since the
         // last polling action
+        generateDriveIdPropertiesFile();
+        generateGroupIdFile();
         String drivePageToken = null;
         do {
           DriveList result = service.drives().list()
@@ -180,6 +182,51 @@ public class DrivePollEventProcessor implements Processor {
       e.printStackTrace();
     }
 
+  }
+
+  private void generateGroupIdFile() throws IOException {
+    DriveList result = service.drives().list().setPageToken(null).execute();
+    Path groupIdProperties = Paths.get(this.config.get("groupIdProperties"));
+
+    if(Files.notExists(groupIdProperties))
+      Files.createFile(groupIdProperties);
+
+    FileInputStream inGroupIdProperties = new FileInputStream(String.valueOf(groupIdProperties));
+    Properties propsGroupIdProperties = new Properties();
+    propsGroupIdProperties.load(inGroupIdProperties);
+    inGroupIdProperties.close();
+    FileOutputStream outGroupIdProperties = new FileOutputStream(String.valueOf(groupIdProperties));
+    for (Drive teamDrive: result.getDrives())
+      propsGroupIdProperties.setProperty(teamDrive.getId(),teamDrive.getName());
+
+    propsGroupIdProperties.store(outGroupIdProperties, "");
+    outGroupIdProperties.close();
+  }
+
+  private void generateDriveIdPropertiesFile() throws Exception {
+    //Fire the query and get the drive name and the drive id and store it to a file name driveIdProperties
+    DriveList result = service.drives().list().setPageToken(null).execute();
+    Path driveIdProperties = Paths.get(this.config.get("driveIdProperties"));
+
+    if (Files.notExists(driveIdProperties))
+      Files.createFile(driveIdProperties);
+
+    Path acronymProperties = Paths.get(this.config.get("driveAcronymProperties"));
+    Properties acronymMap = new Properties();
+    FileInputStream inAcronymMap = new FileInputStream(String.valueOf(acronymProperties));
+    acronymMap.load(inAcronymMap);
+
+    FileOutputStream outDriveIdProperties = new FileOutputStream(String.valueOf(driveIdProperties));
+    Properties propsDriveIdProperties = new Properties();
+    FileInputStream inDriveIdProperties = new FileInputStream(String.valueOf(driveIdProperties));
+    propsDriveIdProperties.load(inDriveIdProperties);
+    inDriveIdProperties.close();
+
+    for (Drive teamDrive: result.getDrives())
+      propsDriveIdProperties.setProperty(teamDrive.getId(), acronymMap.getProperty(teamDrive.getName()));
+
+    propsDriveIdProperties.store(outDriveIdProperties, "");
+    outDriveIdProperties.close();
   }
 
   /**
@@ -375,7 +422,6 @@ public class DrivePollEventProcessor implements Processor {
                     .setSupportsAllDrives(true)
                     .setDriveId(teamDrive.getId())
                     .execute();
-
                 updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
               }
 
