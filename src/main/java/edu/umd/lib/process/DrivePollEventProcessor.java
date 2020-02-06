@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -58,6 +59,23 @@ public class DrivePollEventProcessor implements Processor {
   final static String PROP_MIME_TYPE_FOLDER = "application/vnd.google-apps.folder";
   final static String PROP_TYPE_FILE = "FILES";
   final static String PROP_TYPE_FOLDER = "FOLDERS";
+  final static Map<String, String> smartCharacters = new HashMap<String, String>();
+  static {
+    smartCharacters.put("\u2013", "-");
+    smartCharacters.put("\u2014", "-");
+    smartCharacters.put("\u2015", "-");
+    smartCharacters.put("\u2017", "_");
+    smartCharacters.put("\u2018", "'");
+    smartCharacters.put("\u2019", "'");
+    smartCharacters.put("\u201a", ",");
+    smartCharacters.put("\u201b", "'");
+    smartCharacters.put("\u201c", "\"");
+    smartCharacters.put("\u201d", "\"");
+    smartCharacters.put("\u201e", "\"");
+    smartCharacters.put("\u2026", "...");
+    smartCharacters.put("\u2032", "'");
+    smartCharacters.put("\u2033", "\"");
+  }
 
   public DrivePollEventProcessor() {
   }
@@ -122,6 +140,7 @@ public class DrivePollEventProcessor implements Processor {
             while (pageToken != null) {
 
               log.info("Checking changes for Drive " + teamDrive.getName());
+
               ChangeList changes = service.changes().list(pageToken)
                   .setFields("changes,nextPageToken,newStartPageToken")
                   .setIncludeItemsFromAllDrives(true)
@@ -129,7 +148,6 @@ public class DrivePollEventProcessor implements Processor {
                   .setDriveId(teamDrive.getId())
                   .setPageSize(100)
                   .execute();
-
               String changesType = getChangesType(changes);
 
               for (Change change : changes.getChanges()) {
@@ -411,17 +429,17 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void sendFileRenameRequest(String srcPath, File changedFile) {
     String fileName = changedFile.getName();
-
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "rename_file");
     headers.put("source_id", changedFile.getId());
-    headers.put("source_name", fileName);
-    headers.put("storage_path", srcPath);
+    headers.put("source_name", sanitize(fileName));
+    headers.put("storage_path", sanitize(srcPath));
     DateTime modifiedTime = changedFile.getModifiedTime();
-    if (modifiedTime == null) {
-      modifiedTime = new DateTime(new Date());
-    }
-    String modified_time = modifiedTime.toString();
+    String modified_time;
+    if (modifiedTime == null)
+      modified_time = Instant.now().toString();
+    else
+      modified_time = modifiedTime.toString();
     headers.put("modified_time", modified_time);
     sendActionExchange(headers, "");
   }
@@ -453,7 +471,7 @@ public class DrivePollEventProcessor implements Processor {
   public void sendFileMoveRequest(File file, String srcPath) {
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("action", "move_file");
-    buildHeader(file, srcPath, headers);
+    buildHeader(file, sanitize(srcPath), headers);
   }
 
   /**
@@ -613,9 +631,9 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void sendNewFileRequest(File file, String path) {
     HashMap<String, String> headers = new HashMap<String, String>();
+    path = sanitize(path);
     headers.put("action", "new_file");
-    headers.put("source_name", file.getName());
-
+    headers.put("source_name", sanitize(file.getName()));
     DateTime creationTime = file.getCreatedTime();
     if (creationTime == null) {
       creationTime = new DateTime(new Date());
@@ -630,6 +648,13 @@ public class DrivePollEventProcessor implements Processor {
 
     headers.put("file_checksum", file.getMd5Checksum());
     buildHeader(file, path, headers);
+  }
+
+  private String sanitize(String path) {
+    for(Map.Entry<String, String> k : smartCharacters.entrySet())
+      if (path.indexOf(k.getKey()) > -1)
+        path = path.replaceAll(k.getKey(), k.getValue());
+    return path;
   }
 
   /**
