@@ -239,7 +239,8 @@ public class DrivePollEventProcessor implements Processor {
     if (results == null || results.size() == 0) {
       // New file download request
       log.info("New File request");
-      sendNewFileRequest(changeItem, sourcePath);
+      if (!chkIfGoogleDoc(changeItem.getMimeType()))
+        sendNewFileRequest(changeItem, sourcePath);
     } else {
       String savedFilePath = null;
       String savedCheckSum = null;
