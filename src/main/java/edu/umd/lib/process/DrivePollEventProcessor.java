@@ -7,13 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Stack;
+import java.util.*;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
@@ -368,16 +362,15 @@ public class DrivePollEventProcessor implements Processor {
 
               File publishedFolder = accessPublishedFolder(teamDrive);
 
-              if (publishedFolder != null) {
-                accessPublishedFiles(publishedFolder, teamDrive);
+              if (publishedFolder == null)
+                publishedFolder = createPublishedFolder(teamDrive);
 
-                StartPageToken response = service.changes().getStartPageToken()
-                    .setSupportsAllDrives(true)
-                    .setDriveId(teamDrive.getId())
-                    .execute();
-
-                updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
-              }
+              accessPublishedFiles(publishedFolder, teamDrive);
+              StartPageToken response = service.changes().getStartPageToken()
+                  .setSupportsAllDrives(true)
+                  .setDriveId(teamDrive.getId())
+                  .execute();
+              updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
 
             }
           }
@@ -494,9 +487,11 @@ public class DrivePollEventProcessor implements Processor {
           for (Drive teamDrive : teamDrives) {
             log.debug("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
             File publishedFolder = accessPublishedFolder(teamDrive);
-            if (publishedFolder != null) {
-              accessPublishedFiles(publishedFolder, teamDrive);
-            }
+
+            if(publishedFolder == null)
+              publishedFolder = createPublishedFolder(teamDrive);
+
+            accessPublishedFiles(publishedFolder, teamDrive);
             StartPageToken response = service.changes().getStartPageToken()
                 .setSupportsAllDrives(true)
                 .setDriveId(teamDrive.getId())
@@ -515,6 +510,42 @@ public class DrivePollEventProcessor implements Processor {
     } catch (Exception e) {
       log.error(e.getMessage());
       e.printStackTrace();
+    }
+  }
+
+  private File createPublishedFolder(Drive teamDrive) {
+    try {
+    File folderMetaData = new File();
+    folderMetaData.setParents(Collections.singletonList(teamDrive.getId()));
+    folderMetaData.setName("published");
+    folderMetaData.setMimeType("application/vnd.google-apps.folder");
+    File publishedFolder = service.files().create(folderMetaData).setSupportsTeamDrives(true).setFields("id, parents").execute();
+    log.info("Published folder created");
+    createSubfolders(publishedFolder,"minutes,workplans,policies,guidelines,links");
+    log.info("Sub-Folders created under Published");
+    return publishedFolder;
+    }
+    catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
+  }
+
+  private void createSubfolders(File publishedFolder, String names) {
+    String[] name = names.split(",");
+    for (String each : name) {
+      try {
+        File folderMetaData = new File();
+        folderMetaData.setParents(Collections.singletonList(publishedFolder.getId()));
+        folderMetaData.setName(each);
+        folderMetaData.setMimeType("application/vnd.google-apps.folder");
+        service.files().create(folderMetaData)
+            .setSupportsTeamDrives(true)
+            .setFields("id, parents")
+            .execute();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 
