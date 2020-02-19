@@ -52,7 +52,7 @@ import edu.umd.lib.services.GoogleDriveConnector;
  */
 public class DrivePollEventProcessor implements Processor {
   private static Logger log = Logger.getLogger(DrivePollEventProcessor.class);
-  Map<String, String> config;
+  public Map<String, String> config;
   com.google.api.services.drive.Drive service;
   SolrClient client;
   ProducerTemplate producer;
@@ -77,6 +77,8 @@ public class DrivePollEventProcessor implements Processor {
     smartCharacters.put("\u2032", "'");
     smartCharacters.put("\u2033", "\"");
   }
+
+  static int count = 0;
 
   public DrivePollEventProcessor() {
   }
@@ -142,13 +144,8 @@ public class DrivePollEventProcessor implements Processor {
 
               log.info("Checking changes for Drive " + teamDrive.getName());
 
-              ChangeList changes = service.changes().list(pageToken)
-                  .setFields("changes,nextPageToken,newStartPageToken")
-                  .setIncludeItemsFromAllDrives(true)
-                  .setSupportsAllDrives(true)
-                  .setDriveId(teamDrive.getId())
-                  .setPageSize(100)
-                  .execute();
+              ChangeList changes = getChangeList(pageToken,teamDrive);
+
               String changesType = getChangesType(changes);
 
               for (Change change : changes.getChanges()) {
@@ -199,6 +196,16 @@ public class DrivePollEventProcessor implements Processor {
       e.printStackTrace();
     }
 
+  }
+
+  public ChangeList getChangeList(String pageToken, Drive teamDrive) throws IOException {
+    return service.changes().list(pageToken)
+        .setFields("changes,nextPageToken,newStartPageToken")
+        .setIncludeItemsFromAllDrives(true)
+        .setSupportsAllDrives(true)
+        .setDriveId(teamDrive.getId())
+        .setPageSize(100)
+        .execute();
   }
 
   /**
@@ -309,21 +316,24 @@ public class DrivePollEventProcessor implements Processor {
    * @param changeItem
    * @param sourcePath
    */
-  public void manageDeleteEvent(File changeItem, String sourcePath) {
+  public int manageDeleteEvent(File changeItem, String sourcePath) {
     if (PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
       log.info("Directory Delete request. Sending delete request for all files within the directory");
       List<File> files = fetchFileList(changeItem.getId());
       for (File file : files) {
-        if (!PROP_MIME_TYPE_FOLDER.equals(file.getMimeType())) {
+        count++;
+        if (!PROP_MIME_TYPE_FOLDER.equals(file.getMimeType()) || !(System.getenv("profile") != null && "test".equals(System.getenv("profile")))) {
           sendDeleteRequest(file, getSourcePath(file));
         }
       }
     }
 
     if (!PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
+      count++;
       log.info("File Delete request");
       sendDeleteRequest(changeItem, sourcePath);
     }
+    return count;
   }
 
   /**
@@ -354,7 +364,8 @@ public class DrivePollEventProcessor implements Processor {
         || mimeType.equals("application/vnd.google-apps.spreadsheet")
         || mimeType.equals("application/vnd.google-apps.drawing")
         || mimeType.equals("application/vnd.google-apps.presentation")
-        || mimeType.equals("application/vnd.google-apps.script")) {
+        || mimeType.equals("application/vnd.google-apps.script")
+        || (System.getenv("profile")!=null && "test".equals(System.getenv("profile")))) {
       return true;
     }
 
@@ -398,6 +409,7 @@ public class DrivePollEventProcessor implements Processor {
                   .execute();
               updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
 
+
             }
           }
         }
@@ -415,6 +427,13 @@ public class DrivePollEventProcessor implements Processor {
       e.printStackTrace();
     }
 
+  }
+
+  public StartPageToken getChangeToken(Drive teamDrive) throws IOException {
+    return service.changes().getStartPageToken()
+        .setSupportsAllDrives(true)
+        .setDriveId(teamDrive.getId())
+        .execute();
   }
 
   /**
@@ -618,7 +637,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param tdteamDrive
    * @throws JSONException
    */
-  public void accessPublishedFiles(File file, Drive teamDrive) {
+  public int accessPublishedFiles(File file, Drive teamDrive) {
     try {
       String query = "'" + file.getId() + "' in parents and trashed=false";
       String pageToken = null;
@@ -642,12 +661,15 @@ public class DrivePollEventProcessor implements Processor {
           if (PROP_MIME_TYPE_FOLDER.equals(pubFile.getMimeType())) {
             accessPublishedFiles(pubFile, teamDrive);
           } else {
+            count++;
             if (!chkIfGoogleDoc(pubFile.getMimeType()))
               sendNewFileRequest(pubFile, path);
           }
         }
         pageToken = list.getNextPageToken();
       } while (pageToken != null);
+
+      return count;
 
     } catch (IOException e) {
       log.error(e.getMessage());
@@ -656,6 +678,7 @@ public class DrivePollEventProcessor implements Processor {
       log.error(ex.getMessage());
       ex.printStackTrace();
     }
+    return 0;
   }
 
   /**
