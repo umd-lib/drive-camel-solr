@@ -118,63 +118,66 @@ public class DrivePollEventProcessor implements Processor {
           checkForNewTeamDrives(teamDrives, tokenProperties);
 
           for (TeamDrive teamDrive : teamDrives) {
+            try {
+              String pageToken = loadDriveChangesToken(teamDrive.getId());
 
-            String pageToken = loadDriveChangesToken(teamDrive.getId());
+              while (pageToken != null) {
 
-            while (pageToken != null) {
+                log.info("Checking changes for Drive " + teamDrive.getName());
+                ChangeList changes = service.changes().list(pageToken)
+                    .setFields("changes,nextPageToken,newStartPageToken")
+                    .setIncludeTeamDriveItems(true)
+                    .setSupportsTeamDrives(true)
+                    .setTeamDriveId(teamDrive.getId())
+                    .setPageSize(100)
+                    .execute();
 
-              log.info("Checking changes for Drive " + teamDrive.getName());
-              ChangeList changes = service.changes().list(pageToken)
-                  .setFields("changes,nextPageToken,newStartPageToken")
-                  .setIncludeTeamDriveItems(true)
-                  .setSupportsTeamDrives(true)
-                  .setTeamDriveId(teamDrive.getId())
-                  .setPageSize(100)
-                  .execute();
+                String changesType = getChangesType(changes);
 
-              String changesType = getChangesType(changes);
-
-              for (Change change : changes.getChanges()) {
-                File changeItem = change.getFile();
-                if (changeItem != null) {
-                  boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
-                  if (!isGoogleDoc) {
-                    String sourcePath = getSourcePath(changeItem);
-                    // We are interested only in the changes that occur inside
-                    // the published folder
-                    if ("published".equals(sourcePath.split("/")[2])) {
-                      log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
-                      log.info("Source Path of accessed file:" + sourcePath);
-                      // Delete event
-                      if (change.getRemoved() || changeItem.getTrashed()) {
-                        manageDeleteEvent(changeItem, sourcePath);
-                      } else if (changeItem.getMimeType().equals(PROP_MIME_TYPE_FOLDER)) {
-                        if (!"published".equals(changeItem.getName()) && PROP_TYPE_FOLDER.equals(changesType)) {
-                          log.debug("Folder Events");
-                          manageFolderEvents(changeItem, sourcePath);
+                for (Change change : changes.getChanges()) {
+                  File changeItem = change.getFile();
+                  if (changeItem != null) {
+                    boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
+                    if (!isGoogleDoc) {
+                      String sourcePath = getSourcePath(changeItem);
+                      // We are interested only in the changes that occur inside
+                      // the published folder
+                      if ("published".equals(sourcePath.split("/")[2])) {
+                        log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
+                        log.info("Source Path of accessed file:" + sourcePath);
+                        // Delete event
+                        if (change.getRemoved() || changeItem.getTrashed()) {
+                          manageDeleteEvent(changeItem, sourcePath);
+                        } else if (changeItem.getMimeType().equals(PROP_MIME_TYPE_FOLDER)) {
+                          if (!"published".equals(changeItem.getName()) && PROP_TYPE_FOLDER.equals(changesType)) {
+                            log.debug("Folder Events");
+                            manageFolderEvents(changeItem, sourcePath);
+                          }
+                        } else {
+                          log.debug("File Events");
+                          manageFileEvents(changeItem, sourcePath);
                         }
                       } else {
-                        log.debug("File Events");
-                        manageFileEvents(changeItem, sourcePath);
-                      }
-                    } else {
-                      managePublishedMoveEvent(changeItem, sourcePath);
-                    } // End of published folder check
-                  } // End of isGoogleDoc check
-                } // End of null check
-              } // End of for loop for changes
+                        managePublishedMoveEvent(changeItem, sourcePath);
+                      } // End of published folder check
+                    } // End of isGoogleDoc check
+                  } // End of null check
+                } // End of for loop for changes
 
-              // save latest page token
-              if (changes.getNewStartPageToken() != null) {
-                pageToken = changes.getNewStartPageToken();
-                log.debug("Page token for team drive:" + teamDrive.getName() + ":" + pageToken);
-                updateDriveChangesToken(teamDrive.getId(), pageToken);
+                // save latest page token
+                if (changes.getNewStartPageToken() != null) {
+                  pageToken = changes.getNewStartPageToken();
+                  log.debug("Page token for team drive:" + teamDrive.getName() + ":" + pageToken);
+                  updateDriveChangesToken(teamDrive.getId(), pageToken);
+                }
+
+                pageToken = changes.getNextPageToken();
+
               }
-
-              pageToken = changes.getNextPageToken();
-
-            }
-            TimeUnit.SECONDS.sleep(3);
+              TimeUnit.SECONDS.sleep(3);
+            } catch(IOException e){
+              e.printStackTrace();
+              }
           }
           drivePageToken = result.getNextPageToken();
         } while (drivePageToken != null);
