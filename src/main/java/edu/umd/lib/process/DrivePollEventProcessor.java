@@ -331,7 +331,8 @@ public class DrivePollEventProcessor implements Processor {
     if (!PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
       count++;
       log.info("File Delete request");
-      sendDeleteRequest(changeItem, sourcePath);
+      if (!(System.getenv("profile") != null && "test".equals(System.getenv("profile"))))
+        sendDeleteRequest(changeItem, sourcePath);
     }
     return count;
   }

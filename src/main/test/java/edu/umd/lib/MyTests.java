@@ -172,7 +172,7 @@ public class MyTests {
     deleteFilesAndFolders("hi.docx","published");
     DriveList result = service.drives().list().execute();
     ChangeList changes = test.getChangeList(null,result.getDrives().get(0));
-    if(changes.getChanges().get(0).getRemoved() ||changes.getChanges().get(0).getTrashed())
+    int count = test.manageDeleteEvent(changes.getChanges().get(0).getFile(),"");
     Assert.assertEquals(3,3);
 
   }
