@@ -118,7 +118,7 @@ public class DrivePollEventProcessor implements Processor {
           checkForNewTeamDrives(teamDrives, tokenProperties);
 
           for (TeamDrive teamDrive : teamDrives) {
-            try {
+
               String pageToken = loadDriveChangesToken(teamDrive.getId());
 
               while (pageToken != null) {
@@ -135,35 +135,38 @@ public class DrivePollEventProcessor implements Processor {
                 String changesType = getChangesType(changes);
 
                 for (Change change : changes.getChanges()) {
-                  File changeItem = change.getFile();
-                  if (changeItem != null) {
-                    boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
-                    if (!isGoogleDoc) {
-                      String sourcePath = getSourcePath(changeItem);
-                      // We are interested only in the changes that occur inside
-                      // the published folder
-                      if ("published".equals(sourcePath.split("/")[2])) {
-                        log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
-                        log.info("Source Path of accessed file:" + sourcePath);
-                        // Delete event
-                        if (change.getRemoved() || changeItem.getTrashed()) {
-                          manageDeleteEvent(changeItem, sourcePath);
-                        } else if (changeItem.getMimeType().equals(PROP_MIME_TYPE_FOLDER)) {
-                          if (!"published".equals(changeItem.getName()) && PROP_TYPE_FOLDER.equals(changesType)) {
-                            log.debug("Folder Events");
-                            manageFolderEvents(changeItem, sourcePath);
+                  try {
+                    File changeItem = change.getFile();
+                    if (changeItem != null) {
+                      boolean isGoogleDoc = chkIfGoogleDoc(changeItem.getMimeType());
+                      if (!isGoogleDoc) {
+                        String sourcePath = getSourcePath(changeItem);
+                        // We are interested only in the changes that occur inside
+                        // the published folder
+                        if ("published".equals(sourcePath.split("/")[2])) {
+                          log.info("Change detected for item: " + changeItem.getId() + ":" + changeItem.getName());
+                          log.info("Source Path of accessed file:" + sourcePath);
+                          // Delete event
+                          if (change.getRemoved() || changeItem.getTrashed()) {
+                            manageDeleteEvent(changeItem, sourcePath);
+                          } else if (changeItem.getMimeType().equals(PROP_MIME_TYPE_FOLDER)) {
+                            if (!"published".equals(changeItem.getName()) && PROP_TYPE_FOLDER.equals(changesType)) {
+                              log.debug("Folder Events");
+                              manageFolderEvents(changeItem, sourcePath);
+                            }
+                          } else {
+                            log.debug("File Events");
+                            manageFileEvents(changeItem, sourcePath);
                           }
                         } else {
-                          log.debug("File Events");
-                          manageFileEvents(changeItem, sourcePath);
-                        }
-                      } else {
-                        managePublishedMoveEvent(changeItem, sourcePath);
-                      } // End of published folder check
-                    } // End of isGoogleDoc check
-                  } // End of null check
+                          managePublishedMoveEvent(changeItem, sourcePath);
+                        } // End of published folder check
+                      } // End of isGoogleDoc check
+                    }
+                  } catch(IOException e){
+                      e.printStackTrace();}
+                  // End of null check
                 } // End of for loop for changes
-
                 // save latest page token
                 if (changes.getNewStartPageToken() != null) {
                   pageToken = changes.getNewStartPageToken();
@@ -175,9 +178,7 @@ public class DrivePollEventProcessor implements Processor {
 
               }
               TimeUnit.SECONDS.sleep(3);
-            } catch(IOException e){
-              e.printStackTrace();
-              }
+              
           }
           drivePageToken = result.getNextPageToken();
         } while (drivePageToken != null);
@@ -251,7 +252,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param changeItem
    * @param sourcePath
    */
-  public void managePublishedMoveEvent(File changeItem, String sourcePath) {
+  public void managePublishedMoveEvent(File changeItem, String sourcePath) throws IOException{
     SolrDocumentList results = solrExistsQuery(changeItem.getId());
     log.debug(results);
     // Verify this file exists in Libi. Otherwise, ignore.
@@ -330,7 +331,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param changeItem
    * @param sourcePath
    */
-  public void manageDeleteEvent(File changeItem, String sourcePath) {
+  public void manageDeleteEvent(File changeItem, String sourcePath) throws IOException{
     if (PROP_MIME_TYPE_FOLDER.equals(changeItem.getMimeType())) {
       log.info("manageDeleteEvent: Directory Delete request.");
       List<File> files = fetchFileList(changeItem.getId());
@@ -353,7 +354,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param changeItem
    * @param sourcePath
    */
-  public void manageFolderEvents(File changeItem, String sourcePath) {
+  public void manageFolderEvents(File changeItem, String sourcePath) throws IOException{
     log.info("Directory Rename or Move request. Sending request for all files within the directory");
     List<File> files = fetchFileList(changeItem.getId());
     for (File file : files) {
@@ -777,14 +778,13 @@ public class DrivePollEventProcessor implements Processor {
    * @return the source path (as it stands in Google Drive) for a file
    * @throws IOException
    */
-  public String getSourcePath(File item) {
+  public String getSourcePath(File item) throws IOException{
     String itemName = item.getName();
     String parentID = item.getParents().get(0);
     Stack<String> path = new Stack<>();
     StringBuilder fullPathBuilder = new StringBuilder();
     path.push(itemName);
 
-    try {
       while (true) {
         File parent = service.files().get(parentID)
             .setSupportsTeamDrives(true)
@@ -800,10 +800,7 @@ public class DrivePollEventProcessor implements Processor {
           parentID = parent.getParents().get(0);
         }
       }
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      e.printStackTrace();
-    }
+
 
     while (!path.isEmpty()) {
       fullPathBuilder.append("/").append(path.pop());
