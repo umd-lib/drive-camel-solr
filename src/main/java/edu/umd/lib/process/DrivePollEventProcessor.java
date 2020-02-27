@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -59,7 +60,7 @@ public class DrivePollEventProcessor implements Processor {
   final static String PROP_MIME_TYPE_FOLDER = "application/vnd.google-apps.folder";
   final static String PROP_TYPE_FILE = "FILES";
   final static String PROP_TYPE_FOLDER = "FOLDERS";
-  final static Map<String, String> smartCharacters = new HashMap<String, String>();
+  final static Map<String, String> smartCharacters = new HashMap<>();
   static {
     smartCharacters.put("\u2013", "-");
     smartCharacters.put("\u2014", "-");
@@ -386,16 +387,15 @@ public class DrivePollEventProcessor implements Processor {
 
               File publishedFolder = accessPublishedFolder(teamDrive);
 
-              if (publishedFolder != null) {
-                accessPublishedFiles(publishedFolder, teamDrive);
+              if (publishedFolder == null)
+                publishedFolder = createPublishedFolder(teamDrive);
 
-                StartPageToken response = service.changes().getStartPageToken()
-                    .setSupportsAllDrives(true)
-                    .setDriveId(teamDrive.getId())
-                    .execute();
-
-                updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
-              }
+              accessPublishedFiles(publishedFolder, teamDrive);
+              StartPageToken response = service.changes().getStartPageToken()
+                  .setSupportsAllDrives(true)
+                  .setDriveId(teamDrive.getId())
+                  .execute();
+              updateDriveChangesToken(teamDrive.getId(), response.getStartPageToken());
 
             }
           }
@@ -429,7 +429,7 @@ public class DrivePollEventProcessor implements Processor {
    */
   public void sendFileRenameRequest(String srcPath, File changedFile) {
     String fileName = changedFile.getName();
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "rename_file");
     headers.put("source_id", changedFile.getId());
     headers.put("source_name", sanitize(fileName));
@@ -453,7 +453,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param sourcePath
    */
   public void sendDeleteRequest(File changeItem, String sourcePath) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
 
     headers.put("action", "delete_file");
     headers.put("source_id", changeItem.getId());
@@ -469,7 +469,7 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public void sendFileMoveRequest(File file, String srcPath) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "move_file");
     buildHeader(file, sanitize(srcPath), headers);
   }
@@ -512,9 +512,11 @@ public class DrivePollEventProcessor implements Processor {
           for (Drive teamDrive : teamDrives) {
             log.debug("Team Drive ID:" + teamDrive.getId() + "\t Team Drive Name:" + teamDrive.getName());
             File publishedFolder = accessPublishedFolder(teamDrive);
-            if (publishedFolder != null) {
-              accessPublishedFiles(publishedFolder, teamDrive);
-            }
+
+            if (publishedFolder == null)
+              publishedFolder = createPublishedFolder(teamDrive);
+
+            accessPublishedFiles(publishedFolder, teamDrive);
             StartPageToken response = service.changes().getStartPageToken()
                 .setSupportsAllDrives(true)
                 .setDriveId(teamDrive.getId())
@@ -533,6 +535,42 @@ public class DrivePollEventProcessor implements Processor {
     } catch (Exception e) {
       log.error(e.getMessage());
       e.printStackTrace();
+    }
+  }
+
+  private File createPublishedFolder(Drive teamDrive) {
+    try {
+      File folderMetaData = new File();
+      folderMetaData.setParents(Collections.singletonList(teamDrive.getId()));
+      folderMetaData.setName("published");
+      folderMetaData.setMimeType("application/vnd.google-apps.folder");
+      File publishedFolder = service.files().create(folderMetaData).setSupportsTeamDrives(true).setFields("id, parents")
+          .execute();
+      log.info("Published folder created");
+      createSubfolders(publishedFolder, "minutes,workplans,policies,guidelines,links");
+      log.info("Sub-Folders created under Published");
+      return publishedFolder;
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
+  }
+
+  private void createSubfolders(File publishedFolder, String names) {
+    String[] name = names.split(",");
+    for (String each : name) {
+      try {
+        File folderMetaData = new File();
+        folderMetaData.setParents(Collections.singletonList(publishedFolder.getId()));
+        folderMetaData.setName(each);
+        folderMetaData.setMimeType("application/vnd.google-apps.folder");
+        service.files().create(folderMetaData)
+            .setSupportsTeamDrives(true)
+            .setFields("id, parents")
+            .execute();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 
@@ -630,7 +668,7 @@ public class DrivePollEventProcessor implements Processor {
    * @throws JSONException
    */
   public void sendNewFileRequest(File file, String path) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     path = sanitize(path);
     headers.put("action", "new_file");
     headers.put("source_name", sanitize(file.getName()));
@@ -651,7 +689,7 @@ public class DrivePollEventProcessor implements Processor {
   }
 
   private String sanitize(String path) {
-    for(Map.Entry<String, String> k : smartCharacters.entrySet())
+    for (Map.Entry<String, String> k : smartCharacters.entrySet())
       if (path.indexOf(k.getKey()) > -1)
         path = path.replaceAll(k.getKey(), k.getValue());
     return path;
@@ -665,7 +703,7 @@ public class DrivePollEventProcessor implements Processor {
    * @param file
    */
   public void sendUpdateContentRequest(File file) {
-    HashMap<String, String> headers = new HashMap<String, String>();
+    HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "update_file");
     headers.put("source_id", file.getId());
     headers.put("file_checksum", file.getMd5Checksum());
@@ -763,7 +801,7 @@ public class DrivePollEventProcessor implements Processor {
   public String getSourcePath(File item) {
     String itemName = item.getName();
     String parentID = item.getParents().get(0);
-    Stack<String> path = new Stack<String>();
+    Stack<String> path = new Stack<>();
     StringBuilder fullPathBuilder = new StringBuilder();
     path.push(itemName);
 
@@ -803,7 +841,7 @@ public class DrivePollEventProcessor implements Processor {
    */
 
   public List<File> fetchFileList(String fileId) {
-    List<File> fullFilesList = new ArrayList<File>();
+    List<File> fullFilesList = new ArrayList<>();
     String teamDriveId = null;
 
     try {
