@@ -168,13 +168,14 @@ public class DrivePollEventProcessor implements Processor {
                       } else if (changeItem.getMimeType().equals(PROP_MIME_TYPE_FOLDER)) {
                         if (!"published".equals(changeItem.getName()) && PROP_TYPE_FOLDER.equals(changesType)) {
                           log.debug("Folder Events");
-                          manageFolderEvents(changeItem, sourcePath);
+                          manageFolderEvents(changeItem, sourcePath, teamDrive);
                         }
                       } else {
                         log.debug("File Events");
-                        manageFileEvents(changeItem, sourcePath);
+                        manageFileEvents(changeItem, sourcePath, teamDrive);
                       }
-                    } // End of published folder check
+                    }else 
+                      managePublishedMoveEvent(changeItem,sourcePath); // End of published folder check
                   } // End of isGoogleDoc check
                 } // End of null check
               } // End of for loop for changes
@@ -199,6 +200,35 @@ public class DrivePollEventProcessor implements Processor {
       e.printStackTrace();
     }
 
+  }
+
+  private void managePublishedMoveEvent(File changeItem, String sourcePath) throws IOException{
+    SolrDocumentList results = solrExistsQuery(changeItem.getId());
+    if (results == null || results.size() == 0) {
+      log.info("managePublishedMoveEvent: File not currently in Libi");
+      return;
+    }
+    manageDeleteEvent(changeItem, sourcePath);
+  }
+
+  private SolrDocumentList solrExistsQuery(String id) {
+    String queryString = "id:" + id;
+    QueryResponse response = null;
+    log.debug("solrExistsQuery: query = " + queryString);
+    SolrQuery query = new SolrQuery();
+    query.setQuery(queryString);
+    query.setFields("storagePath,fileChecksum,title");
+    try {
+      response = client.query(query);
+      log.debug(response);
+    } catch (IOException io) {
+      log.debug(io.getMessage());
+    } catch (SolrServerException so) {
+      log.debug(so.getMessage());
+    } catch (Exception e) {
+      log.debug(e.getMessage());
+    }
+    return response.getResults();
   }
 
   /**
@@ -235,14 +265,14 @@ public class DrivePollEventProcessor implements Processor {
    * @throws IOException
    * @throws SolrServerException
    */
-  public void manageFileEvents(File changeItem, String sourcePath) {
+  public void manageFileEvents(File changeItem, String sourcePath, Drive teamDrive) {
     // Either its a new file download, file rename or a file update request
     QueryResponse response = null;
     log.debug("Id:" + changeItem.getId());
     log.debug("Name:" + changeItem.getName());
     SolrQuery query = new SolrQuery();
     query.setQuery("id:" + changeItem.getId());
-    query.setFields("storagePath,fileChecksum,title");
+    query.setFields("storagePath,fileChecksum,title,driveID");
     try {
       response = client.query(query);
       log.debug(response);
@@ -259,7 +289,8 @@ public class DrivePollEventProcessor implements Processor {
       // New file download request
       log.info("New File request");
       if (!chkIfGoogleDoc(changeItem.getMimeType()))
-        sendNewFileRequest(changeItem, sourcePath);
+        sendNewFileRequest(changeItem, sourcePath, teamDrive);
+
     } else {
       String savedFilePath = null;
       String savedCheckSum = null;
@@ -298,7 +329,7 @@ public class DrivePollEventProcessor implements Processor {
       // Checking for file move request
       if (!serverFilePath.equals(localFilePath)) {
         log.debug("File Move request");
-        sendFileMoveRequest(changeItem, sourcePath);
+        sendFileMoveRequest(changeItem, sourcePath, changeItem.getDriveId());
       }
     }
   }
@@ -332,12 +363,12 @@ public class DrivePollEventProcessor implements Processor {
    * @param changeItem
    * @param sourcePath
    */
-  public void manageFolderEvents(File changeItem, String sourcePath) {
+  public void manageFolderEvents(File changeItem, String sourcePath, Drive teamDrive) {
     log.info("Directory Rename or Move request. Sending request for all files within the directory");
     List<File> files = fetchFileList(changeItem.getId());
     for (File file : files) {
       if (!PROP_MIME_TYPE_FOLDER.equals(file.getMimeType())) {
-        manageFileEvents(file, getSourcePath(file));
+        manageFileEvents(file, getSourcePath(file), teamDrive);
       }
     }
   }
@@ -469,9 +500,10 @@ public class DrivePollEventProcessor implements Processor {
    * @param localFilePathServerFile
    */
 
-  public void sendFileMoveRequest(File file, String srcPath) {
+  public void sendFileMoveRequest(File file, String srcPath, String teamDrive) {
     HashMap<String, String> headers = new HashMap<>();
     headers.put("action", "move_file");
+    headers.put("driveID",teamDrive);
     buildHeader(file, sanitize(srcPath), headers);
   }
 
@@ -643,7 +675,7 @@ public class DrivePollEventProcessor implements Processor {
             accessPublishedFiles(pubFile, teamDrive);
           } else {
             if (!chkIfGoogleDoc(pubFile.getMimeType()))
-              sendNewFileRequest(pubFile, path);
+              sendNewFileRequest(pubFile, path, teamDrive);
           }
         }
         pageToken = list.getNextPageToken();
@@ -668,9 +700,8 @@ public class DrivePollEventProcessor implements Processor {
    * @throws IOException
    * @throws JSONException
    */
-  public void sendNewFileRequest(File file, String path) {
+  public void sendNewFileRequest(File file, String path, Drive teamDrive) {
     HashMap<String, String> headers = new HashMap<>();
-    path = sanitize(path);
     headers.put("action", "new_file");
     headers.put("source_name", sanitize(file.getName()));
     DateTime creationTime = file.getCreatedTime();
@@ -686,7 +717,8 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("modified_time", modifiedTime.toString());
 
     headers.put("file_checksum", file.getMd5Checksum());
-    buildHeader(file, path, headers);
+    headers.put("driveID" , teamDrive.getId());
+    buildHeader(file, sanitize(path), headers);
   }
 
   private String sanitize(String path) {
@@ -902,7 +934,6 @@ public class DrivePollEventProcessor implements Processor {
   public void buildHeader(File file, String srcPath, HashMap<String, String> headers) {
     headers.put("source_id", file.getId());
     headers.put("storage_path", srcPath);
-
     String paths[] = srcPath.split("/");
 
     if (paths.length > 1) {
