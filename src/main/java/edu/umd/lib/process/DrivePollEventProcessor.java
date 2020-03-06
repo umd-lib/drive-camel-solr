@@ -138,7 +138,7 @@ public class DrivePollEventProcessor implements Processor {
 
             String pageToken = loadDriveChangesToken(teamDrive.getId());
 
-            while (pageToken != null) {
+             while (pageToken != null) {
 
               log.info("Checking changes for Drive " + teamDrive.getName());
 
@@ -292,7 +292,7 @@ public class DrivePollEventProcessor implements Processor {
       // occurs we are already handling file rename
       // separately, and if we keep the filename in the path
       // while checking for the file move event, this event
-      // will be triggered even when the file rename occurs.
+      // will be triggered even when the file rename occurs.f
       String serverFilePath = sourcePath.substring(0, sourcePath.lastIndexOf("/"));
       String localFilePath = savedFilePath.substring(0, savedFilePath.lastIndexOf("/"));
       // Checking for file move request
@@ -674,16 +674,20 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("action", "new_file");
     headers.put("source_name", sanitize(file.getName()));
     DateTime creationTime = file.getCreatedTime();
-    if (creationTime == null) {
-      creationTime = new DateTime(new Date());
-    }
-    headers.put("creation_time", creationTime.toString());
+    String creation_time;
+    if (creationTime == null)
+      creation_time = Instant.now().toString();
+    else
+      creation_time = creationTime.toString();
+    headers.put("creation_time", creation_time);
 
     DateTime modifiedTime = file.getModifiedTime();
-    if (modifiedTime == null) {
-      modifiedTime = new DateTime(new Date());
-    }
-    headers.put("modified_time", modifiedTime.toString());
+    String modified_time;
+    if (modifiedTime == null)
+      modified_time = Instant.now().toString();
+    else
+      modified_time = modifiedTime.toString();
+    headers.put("modified_time", modified_time);
 
     headers.put("file_checksum", file.getMd5Checksum());
     buildHeader(file, path, headers);
@@ -709,11 +713,12 @@ public class DrivePollEventProcessor implements Processor {
     headers.put("source_id", file.getId());
     headers.put("file_checksum", file.getMd5Checksum());
     DateTime modifiedTime = file.getModifiedTime();
-    if (modifiedTime == null) {
-      modifiedTime = new DateTime(new Date());
-    }
-    headers.put("modified_time", modifiedTime.toString());
-
+    String modified_time;
+    if (modifiedTime == null)
+      modified_time = Instant.now().toString();
+    else
+      modified_time = modifiedTime.toString();
+    headers.put("modified_time", modified_time);
     sendActionExchange(headers, "");
   }
 
