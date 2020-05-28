@@ -12,6 +12,8 @@
                 <cm:property name="solr.commitWithin" value="10000" />
                 <cm:property name="error.maxRedeliveries" value="2" />
 
+                <cm:property name="drive.drive_id_properties" value="/Users/pankul/apps/git/driveid.properties"/>
+                <cm:property name="drive.group_id_properties" value="/Users/pankul/apps/git/groupid.properties"/>
                 <cm:property name="drive.routeName" value="drive" />
                 <cm:property name="drive.serviceName" value="drive-listener" />
                 <cm:property name="default.domain" value="http://localhost:8080/" />
@@ -43,6 +45,8 @@
             <property name="maxCacheTries" value="${drive.max_cache_entries}" />
             <property name="tokenProperties" value="${drive.token_properties}" />
             <property name="driveAcronymProperties" value="${drive.drive_acronym_properties}" />
+            <property name="driveIdProperties" value="${drive.drive_id_properties}" />
+            <property name="groupIdProperties" value="${drive.group_id_properties}" />
             <property name="pollInterval" value="${drive.poll_interval}" />
             <property name="allowedFileSize" value="${drive.allowed_filesize}" />
             <property name="solrBaseUrl" value="${solr.baseUrl}" />
