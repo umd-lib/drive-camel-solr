@@ -33,6 +33,8 @@ public class SolrRouter extends RouteBuilder {
   private String solrScheme;
   private String solrBaseUrl;
   private String driveAcronymProperties;
+  private String driveIdProperties;
+  private String groupIdProperties;
 
   Map<String, String> config = new HashMap<String, String>();
 
@@ -53,6 +55,8 @@ public class SolrRouter extends RouteBuilder {
     config.put("maxCacheTries", maxCacheTries);
     config.put("tokenProperties", tokenProperties);
     config.put("driveAcronymProperties", driveAcronymProperties);
+    config.put("driveIdProperties", driveIdProperties);
+    config.put("groupIdProperties", groupIdProperties);
     config.put("solrScheme", solrScheme);
     config.put("solrBaseUrl", solrBaseUrl);
     config.put("allowedFileSize", allowedFileSize);
@@ -271,6 +275,23 @@ public class SolrRouter extends RouteBuilder {
    */
   public void setDriveAcronymProperties(String driveAcronymProperties) {
     this.driveAcronymProperties = driveAcronymProperties;
+  }
+
+
+  public String getDriveIdProperties() {
+    return driveIdProperties;
+  }
+
+  public void setDriveIdProperties(String driveIdProperties) {
+    this.driveIdProperties = driveIdProperties;
+  }
+
+  public String getGroupIdProperties() {
+    return groupIdProperties;
+  }
+
+  public void setGroupIdProperties(String groupIdProperties) {
+    this.groupIdProperties = groupIdProperties;
   }
 
   /**
