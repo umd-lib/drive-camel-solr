@@ -24,7 +24,7 @@ public class SolrJsonGenerator {
     String fileType = exchange.getIn().getHeader("file_type", String.class);
     String fileChecksum = exchange.getIn().getHeader("file_checksum", String.class);
     String storagePath = exchange.getIn().getHeader("storage_path", String.class);
-
+    String teamDriveId = exchange.getIn().getHeader("driveID",String.class);
     String genre = "Google Drive";
     String url = "https://drive.google.com/open?id=" + id;
 
@@ -44,6 +44,7 @@ public class SolrJsonGenerator {
     json.put("fileEncoded", encodedMsg);
     json.put("created", creationTime);
     json.put("updated", modifiedTime);
+    json.put("driveID", teamDriveId);
 
     String messageBody = "[" + json.toString() + "]";
     return messageBody;
@@ -95,6 +96,9 @@ public class SolrJsonGenerator {
 
     JSONObject teamDriveObj = new JSONObject();
     json.put("teamDrive", teamDriveObj.put("set", exchange.getIn().getHeader("teamDrive", String.class)));
+
+    JSONObject driveID = new JSONObject();
+    json.put("driveID", driveID.put("set", exchange.getIn().getHeader("driveID", String.class)));
 
     String messageBody = "{'add':{'doc':" + json.toString() + "}}";
     return messageBody;
