@@ -43,6 +43,7 @@ RUN chmod a+x /opt/karaf/bin/deploy-and-run.sh \
 COPY debug-options java-container-options /opt/
 RUN chmod 755 /opt/debug-options /opt/java-container-options
 
+ENV JAVA_OPTIONS=-XX:MaxRAMPercentage=75.0
 
 ENV PATH $PATH:/opt/karaf/bin
 
